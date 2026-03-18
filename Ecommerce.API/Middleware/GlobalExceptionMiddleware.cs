@@ -1,10 +1,7 @@
-﻿using System.Net;
-using System.Text.Json;
+﻿using Ecommerce.Application.Common.Errors;
 using Ecommerce.Application.Common.Exceptions;
-using Ecommerce.Application.Common.Responses;
-using FluentValidation;
-
-namespace Ecommerce.Api.Middleware;
+using Microsoft.AspNetCore.Mvc;
+using System.Text.Json;
 
 public class GlobalExceptionMiddleware
 {
@@ -27,34 +24,95 @@ public class GlobalExceptionMiddleware
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Unhandled Exception");
-
-            await HandleExceptionAsync(context, ex);
+            await HandleException(context, ex);
         }
     }
 
-    private static Task HandleExceptionAsync(
+    private async Task HandleException(
         HttpContext context,
-        Exception exception)
+        Exception ex)
     {
-        var statusCode = exception switch
+        var traceId = context.TraceIdentifier;
+
+        ProblemDetails problem;
+
+        switch (ex)
         {
-            ValidationException => HttpStatusCode.BadRequest,
-            BadRequestException => HttpStatusCode.BadRequest,
-            UnauthorizedException => HttpStatusCode.Unauthorized,
-            NotFoundException => HttpStatusCode.NotFound,
-            _ => HttpStatusCode.InternalServerError
-        };
+            case NotFoundException nf:
+                context.Response.StatusCode = StatusCodes.Status404NotFound;
 
-        var response = ApiResponse<object>.FailureResponse(
-            new[] { exception.Message },
-            "Request failed");
+                problem = new ProblemDetails
+                {
+                    Type = $"https://api.ecommerce.com/errors/{nf.ErrorCode.ToLower()}",
+                    Title = "Resource not found",
+                    Status = 404,
+                    Detail = nf.Message,
+                    Instance = context.Request.Path,
+                    Extensions =
+                    {
+                        ["errorCode"] = nf.ErrorCode,
+                        ["traceId"] = traceId
+                    }
+                };
+                break;
 
-        var json = JsonSerializer.Serialize(response);
+            case UnauthorizedException:
+                context.Response.StatusCode = StatusCodes.Status401Unauthorized;
+
+                problem = new ProblemDetails
+                {
+                    Title = "Unauthorized",
+                    Status = 401,
+                    Detail = ex.Message,
+                    Instance = context.Request.Path,
+                    Extensions =
+                    {
+                        ["errorCode"] = ErrorCodes.Unauthorized,
+                        ["traceId"] = traceId
+                    }
+                };
+                break;
+
+            case BadRequestException:
+                context.Response.StatusCode = StatusCodes.Status400BadRequest;
+
+                problem = new ProblemDetails
+                {
+                    Title = "Bad Request",
+                    Status = 400,
+                    Detail = ex.Message,
+                    Instance = context.Request.Path,
+                    Extensions =
+                    {
+                        ["errorCode"] = ErrorCodes.ValidationFailed,
+                        ["traceId"] = traceId
+                    }
+                };
+                break;
+
+            default:
+                context.Response.StatusCode = StatusCodes.Status500InternalServerError;
+
+                problem = new ProblemDetails
+                {
+                    Title = "Internal Server Error",
+                    Status = 500,
+                    Detail = "An unexpected error occurred.",
+                    Instance = context.Request.Path,
+                    Extensions =
+                    {
+                        ["errorCode"] = "INTERNAL_ERROR",
+                        ["traceId"] = traceId
+                    }
+                };
+
+                _logger.LogError(ex, "Unhandled exception occurred");
+                break;
+        }
 
         context.Response.ContentType = "application/json";
-        context.Response.StatusCode = (int)statusCode;
 
-        return context.Response.WriteAsync(json);
+        await context.Response.WriteAsync(
+            JsonSerializer.Serialize(problem));
     }
 }

@@ -1,8 +1,12 @@
-﻿using Ecommerce.Infrastructure.Persistence;
+﻿using Ecommerce.Application.Events;
+using Ecommerce.Infrastructure.BackgroundJobs;
+using Ecommerce.Infrastructure.Persistence;
+using Hangfire;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using System.Text.Json;
 
 public class OutboxProcessor : BackgroundService
 {
@@ -37,10 +41,24 @@ public class OutboxProcessor : BackgroundService
                 try
                 {
                     _logger.LogInformation(
-                        "Processing outbox message {MessageId}",
-                        message.Id);
+                        "Processing outbox message {MessageId} of type {Type}",
+                        message.Id,
+                        message.Type);
 
-                    // publish event (email, notification, etc.)
+                    // Handle OrderPaid event
+                    if (message.Type == "OrderPaid")
+                    {
+                        var payload = JsonSerializer
+                            .Deserialize<OrderPaidEvent>(message.Payload);
+
+                        if (payload != null)
+                        {
+                            BackgroundJob.Enqueue<EmailJobs>(
+                                job => job.SendOrderConfirmation(
+                                    payload.Email,
+                                    payload.OrderId));
+                        }
+                    }
 
                     message.MarkProcessed();
                 }

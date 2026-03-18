@@ -1,4 +1,5 @@
-﻿using Ecommerce.Application.Common.Pagination;
+﻿using Asp.Versioning;
+using Ecommerce.Application.Common.Pagination;
 using Ecommerce.Application.Common.Responses;
 using Ecommerce.Application.DTOs.Products;
 using Ecommerce.Application.Interfaces;
@@ -12,7 +13,8 @@ namespace Ecommerce.Api.Controllers;
 
 [EnableRateLimiting("ApiPolicy")]
 [ApiController]
-[Route("api/products")]
+[ApiVersion("1.0")]
+[Route("api/v{version:apiVersion}/products")]
 public class ProductsController : ControllerBase
 {
     private readonly IProductService _service;

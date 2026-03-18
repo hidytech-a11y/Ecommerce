@@ -96,6 +96,8 @@ public class OrderService : IOrderService
             await _orderRepository.AddAsync(order);
             await _orderRepository.SaveChangesAsync();
 
+           
+
             await transaction.CommitAsync();
 
             _logger.LogInformation(

@@ -1,4 +1,4 @@
-using Ecommerce.Api.Middleware;
+using Asp.Versioning;
 using Ecommerce.Application.Validators.Auth;
 using Ecommerce.Domain.Entities;
 using Ecommerce.Infrastructure;
@@ -6,12 +6,15 @@ using Ecommerce.Infrastructure.Middleware;
 using Ecommerce.Infrastructure.Persistence;
 using FluentValidation;
 using FluentValidation.AspNetCore;
+using Hangfire;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
+using OpenTelemetry.Resources;
+using OpenTelemetry.Trace;
 using Serilog;
 using StackExchange.Redis;
 using System.Text;
@@ -24,7 +27,7 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddDbContext<AppDbContext>(options =>
     options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")));
 
-
+//Authentication configuration  
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     .AddJwtBearer(options =>
     {
@@ -97,6 +100,47 @@ builder.Services.AddRateLimiter(options =>
     };
 });
 
+// OpenTelemetry request trace configuration
+builder.Services.AddOpenTelemetry()
+    .ConfigureResource(resource =>
+        resource.AddService("Ecommerce.Api"))
+    .WithTracing(tracing =>
+    {
+        tracing
+            .AddAspNetCoreInstrumentation()
+            .AddHttpClientInstrumentation()
+            .AddEntityFrameworkCoreInstrumentation()
+            .AddConsoleExporter();
+    });
+
+// Hangfire asynchtonous job processing configuration
+builder.Services.AddHangfire(config =>
+    config.SetDataCompatibilityLevel(CompatibilityLevel.Version_180)
+          .UseSimpleAssemblyNameTypeSerializer()
+          .UseRecommendedSerializerSettings()
+          .UseSqlServerStorage(
+              builder.Configuration.GetConnectionString("DefaultConnection")));
+
+//API Versioning configuration
+
+builder.Services.AddApiVersioning(options =>
+{
+    options.DefaultApiVersion = new ApiVersion(1, 0);
+    options.AssumeDefaultVersionWhenUnspecified = true;
+    options.ReportApiVersions = true;
+    options.ApiVersionReader = new UrlSegmentApiVersionReader();
+})
+.AddApiExplorer(options =>
+{
+    options.GroupNameFormat = "'v'VVV";
+    options.SubstituteApiVersionInUrl = true;
+});
+
+builder.Services.AddHangfireServer();
+builder.Services.AddEndpointsApiExplorer();
+builder.Services.AddSwaggerGen();
+
+
 Log.Logger = new LoggerConfiguration()
     .ReadFrom.Configuration(builder.Configuration)
     .Enrich.FromLogContext()
@@ -155,9 +199,11 @@ app.UseHttpsRedirection();
 app.UseMiddleware<PaystackWebhookMiddleware>();
 app.UseMiddleware<GlobalExceptionMiddleware>();
 app.UseRateLimiter();
+
 app.UseAuthentication();
 app.UseAuthorization();
 
+app.UseHangfireDashboard("/jobs");
 
 app.MapControllers();
 

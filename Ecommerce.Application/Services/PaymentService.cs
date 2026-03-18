@@ -1,13 +1,12 @@
 ﻿using Ecommerce.Application.Common.Exceptions;
 using Ecommerce.Application.Common.Utilities;
 using Ecommerce.Application.DTOs.Payments;
+using Ecommerce.Application.Events;
 using Ecommerce.Application.Interfaces;
 using Ecommerce.Domain.Entities;
 using Ecommerce.Domain.Enums;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Logging;
-using System.Security.Cryptography;
-using System.Text;
 using System.Text.Json;
 
 namespace Ecommerce.Application.Services;
@@ -18,17 +17,20 @@ public class PaymentService : IPaymentService
     private readonly IPaystackClient _paystackClient;
     private readonly ILogger<PaymentService> _logger;
     private readonly IOutboxRepository _outboxRepository;
+    private readonly IUserRepository _userRepository;
 
     public PaymentService(
         IOrderRepository orderRepository,
         IPaystackClient paystackClient,
         ILogger<PaymentService> logger,
-        IOutboxRepository outboxRepository)
+        IOutboxRepository outboxRepository,
+        IUserRepository userRepository)
     {
         _orderRepository = orderRepository;
         _paystackClient = paystackClient;
         _logger = logger;
         _outboxRepository = outboxRepository;
+        _userRepository = userRepository;
     }
 
     public async Task<InitializePaymentResponse> InitializePaymentAsync(
@@ -125,7 +127,6 @@ public class PaymentService : IPaymentService
         }
 
         var data = doc.RootElement.GetProperty("data");
-
         var reference = data.GetProperty("reference").GetString();
 
         _logger.LogInformation(
@@ -188,13 +189,26 @@ public class PaymentService : IPaymentService
             reference,
             verification.Amount);
 
+        // FIX: Fetch user safely
+        var user = await _userRepository.GetByIdAsync(order.UserId);
+
+        if (user is null)
+        {
+            _logger.LogError(
+                "User not found for paid order. OrderId={OrderId} UserId={UserId}",
+                order.Id,
+                order.UserId);
+
+            throw new NotFoundException("User not found.");
+        }
+
         order.MarkAsPaid(reference);
 
-        var payload = JsonSerializer.Serialize(new
+        // Create Outbox event
+        var payload = JsonSerializer.Serialize(new OrderPaidEvent
         {
             OrderId = order.Id,
-            Reference = reference,
-            PaidAt = DateTime.UtcNow
+            Email = user.Email
         });
 
         var outboxMessage = new OutboxMessage(
@@ -202,12 +216,13 @@ public class PaymentService : IPaymentService
             payload);
 
         await _outboxRepository.AddAsync(outboxMessage);
+
+        // Save both order + outbox in same flow
+        await _orderRepository.SaveChangesAsync();
         await _outboxRepository.SaveChangesAsync();
 
-        await _orderRepository.SaveChangesAsync();
-
         _logger.LogInformation(
-            "Order marked as PAID after webhook verification. OrderId={OrderId} Reference={Reference}",
+            "Order marked as PAID and outbox event created. OrderId={OrderId} Reference={Reference}",
             order.Id,
             reference);
     }

@@ -16,6 +16,7 @@ public class AppDbContext : DbContext
     public DbSet<Product> Products => Set<Product>();
     public DbSet<Category> Categories => Set<Category>();
     public DbSet<Order> Orders => Set<Order>();
+    public DbSet<Cart> Carts => Set<Cart>();
     public DbSet<OrderItem> OrderItems => Set<OrderItem>();
     public DbSet<Discount> Discounts => Set<Discount>();
     public DbSet<OutboxMessage> OutboxMessages => Set<OutboxMessage>();
@@ -48,5 +49,25 @@ public class AppDbContext : DbContext
             .HasIndex(p => p.Price);
 
         base.OnModelCreating(builder);
+
+        builder.Entity<Product>()
+            .Property(p => p.Price)
+            .HasPrecision(18, 2);
+
+        builder.Entity<Discount>()
+            .Property(d => d.Value)
+            .HasPrecision(18, 2);
+
+        builder.Entity<Order>()
+            .Property(o => o.TotalAmount)
+            .HasPrecision(18, 2);
+
+        builder.Entity<OrderItem>()
+            .Property(o => o.OriginalPriceSnapshot)
+            .HasPrecision(18, 2);
+
+        builder.Entity<OrderItem>()
+            .Property(o => o.FinalPriceSnapshot)
+            .HasPrecision(18, 2);
     }
 }

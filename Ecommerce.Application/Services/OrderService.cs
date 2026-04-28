@@ -12,61 +12,51 @@ public class OrderService : IOrderService
     private readonly IOrderRepository _orderRepository;
     private readonly IProductRepository _productRepository;
     private readonly IDiscountRepository _discountRepository;
+    private readonly ICartRepository _cartRepository;
     private readonly ILogger<OrderService> _logger;
 
     public OrderService(
         IOrderRepository orderRepository,
         IProductRepository productRepository,
         IDiscountRepository discountRepository,
+        ICartRepository cartRepository,
         ILogger<OrderService> logger)
     {
         _orderRepository = orderRepository;
         _productRepository = productRepository;
         _discountRepository = discountRepository;
+        _cartRepository = cartRepository;
         _logger = logger;
     }
 
-    public async Task<OrderResponse> CreateOrderAsync(Guid userId, CreateOrderRequest request)
+    public async Task<OrderResponse> CreateOrderFromCartAsync(Guid userId)
     {
         await using var transaction = await _orderRepository.BeginTransactionAsync();
 
         try
         {
+            var cart = await _cartRepository.GetByUserIdAsync(userId);
+
+            if (cart is null || !cart.Items.Any())
+                throw new BadRequestException("Cart is empty.");
+
             var order = new Order(userId);
 
             _logger.LogInformation(
-                "Starting order creation. OrderId={OrderId} UserId={UserId}",
+                "Starting checkout from cart. OrderId={OrderId} UserId={UserId}",
                 order.Id,
                 userId);
 
-            foreach (var item in request.Items)
+            foreach (var item in cart.Items)
             {
-                _logger.LogInformation(
-                    "Checking inventory for ProductId={ProductId} RequestedQuantity={Quantity}",
-                    item.ProductId,
-                    item.Quantity);
-
                 var product = await _productRepository.GetByIdAsync(item.ProductId);
 
                 if (product is null)
-                {
-                    _logger.LogWarning(
-                        "Product not found during checkout. ProductId={ProductId}",
-                        item.ProductId);
-
-                    throw new NotFoundException($"Product {item.ProductId} not found.");
-                }
+                    throw new NotFoundException("Product not found.");
 
                 if (product.StockQuantity < item.Quantity)
-                {
-                    _logger.LogWarning(
-                        "Insufficient stock detected. ProductId={ProductId} Available={AvailableStock} Requested={Requested}",
-                        product.Id,
-                        product.StockQuantity,
-                        item.Quantity);
-
-                    throw new BadRequestException($"Insufficient stock for {product.Name}");
-                }
+                    throw new BadRequestException(
+                        $"Insufficient stock for {product.Name}");
 
                 var discount = await _discountRepository
                     .GetActiveDiscountForProductAsync(product.Id);
@@ -85,26 +75,20 @@ public class OrderService : IOrderService
                 order.AddItem(orderItem);
 
                 product.ReduceStock(item.Quantity);
-
-                _logger.LogInformation(
-                    "Inventory reserved. ProductId={ProductId} Quantity={Quantity} RemainingStock={RemainingStock}",
-                    product.Id,
-                    item.Quantity,
-                    product.StockQuantity);
             }
 
             await _orderRepository.AddAsync(order);
-            await _orderRepository.SaveChangesAsync();
 
-           
+            // Clear cart after successful order creation
+            cart.Clear();
+
+            await _orderRepository.SaveChangesAsync();
 
             await transaction.CommitAsync();
 
             _logger.LogInformation(
-                "Order successfully created. OrderId={OrderId} UserId={UserId} TotalAmount={TotalAmount}",
-                order.Id,
-                userId,
-                order.TotalAmount);
+                "Order successfully created from cart. OrderId={OrderId}",
+                order.Id);
 
             return new OrderResponse(
                 order.Id,
@@ -112,28 +96,12 @@ public class OrderService : IOrderService
                 order.Status.ToString(),
                 order.CreatedAt);
         }
-        catch (ConcurrencyException ex)
+        catch (ConcurrencyException)
         {
             await transaction.RollbackAsync();
-
-            _logger.LogWarning(
-                ex,
-                "Concurrency conflict during checkout. UserId={UserId}",
-                userId);
 
             throw new BadRequestException(
                 "Inventory changed during checkout. Please retry.");
-        }
-        catch (Exception ex)
-        {
-            await transaction.RollbackAsync();
-
-            _logger.LogError(
-                ex,
-                "Unexpected error occurred during order creation. UserId={UserId}",
-                userId);
-
-            throw;
         }
     }
 

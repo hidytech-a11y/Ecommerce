@@ -28,20 +28,49 @@ public static class DependencyInjection
         services.AddScoped<IUserRepository, UserRepository>();
         services.AddScoped<IProductRepository, ProductRepository>();
         services.AddScoped<IOrderRepository, OrderRepository>();
+        services.AddScoped<IDiscountRepository, DiscountRepository>();
+
+        services.AddScoped<ICartRepository, CartRepository>();
+
+        // AuthService
+        services.AddScoped<IAuthService, AuthService>();
+
+        // ProductService
+        services.AddScoped<IProductService, ProductService>();
+
+        // OrderService
+        services.AddScoped<IOrderService, OrderService>();
+
+        // Transaction Service
+        //services.AddScoped<ITransaction, Transaction>();
 
         // Payment
         services.AddHttpClient<IPaystackClient, PaystackClient>();
         services.AddScoped<IPaymentService, PaymentService>();
 
         // Redis Connection
-        services.AddSingleton<IConnectionMultiplexer>(sp =>
-        {
-            var connectionString = configuration["Redis:ConnectionString"];
-            return ConnectionMultiplexer.Connect(connectionString);
-        });
+        //services.AddSingleton<IConnectionMultiplexer>(sp =>
+        //{
+        //    try
+        //    {
+        //        return ConnectionMultiplexer.Connect("localhost:6379,abortConnect=false");
+        //    }
+        //    catch
+        //    {
+        //        return null!;
+        //    }
+        //});
+
+        //services.AddSingleton<IConnectionMultiplexer>(sp =>
+        //{
+        //    var connectionString = configuration["Redis:ConnectionString"];
+        //    return ConnectionMultiplexer.Connect(connectionString);
+        //});
 
         // Cache Service
-        services.AddScoped<ICacheService, RedisCacheService>();
+        //services.AddScoped<ICacheService, RedisCacheService>();
+        services.AddMemoryCache();
+        services.AddScoped<ICacheService, MemoryCacheService>();
 
         // Outbox pattern
         services.AddScoped<IOutboxRepository, OutboxRepository>();

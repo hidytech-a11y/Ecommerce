@@ -193,7 +193,7 @@ builder.Services.AddSwaggerGen(options =>
         Version = "v1"
     });
 
-    // 🔐 Add JWT Authentication
+    //Add JWT Authentication
     options.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
     {
         Name = "Authorization",
@@ -228,8 +228,10 @@ await AdminSeeder.SeedAsync(app.Services);
 // Configure the HTTP request pipeline.
 if (app.Environment.IsDevelopment())
 {
-    app.UseSwagger();
-    app.UseSwaggerUI();
+    var port = Environment.GetEnvironmentVariable("PORT") ?? "10000";
+    app.Urls.Add($"http://0.0.0.0:{port}");
+    //app.UseSwagger();
+    //app.UseSwaggerUI();
 }
 
 app.UseSerilogRequestLogging();

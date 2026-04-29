@@ -1,7 +1,6 @@
 services:
   - type: web
     name: ecommerce-api
-    env: docker
     plan: free
     buildCommand: dotnet publish Ecommerce.API/Ecommerce.API.csproj -c Release -o out
     startCommand: dotnet out/Ecommerce.API.dll

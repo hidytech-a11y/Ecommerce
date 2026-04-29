@@ -1,9 +1,0 @@
-services:
-  - type: web
-    name: ecommerce-api
-    plan: free
-    buildCommand: dotnet publish Ecommerce.API/Ecommerce.API.csproj -c Release -o out
-    startCommand: dotnet out/Ecommerce.API.dll
-    envVars:
-      - key: ASPNETCORE_URLS
-        value: http://0.0.0.0:10000

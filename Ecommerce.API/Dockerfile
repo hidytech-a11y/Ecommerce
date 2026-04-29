@@ -2,8 +2,10 @@
 FROM mcr.microsoft.com/dotnet/sdk:9.0 AS build
 WORKDIR /app
 
-COPY . ./
-RUN dotnet publish Ecommerce.API/Ecommerce.API.csproj -c Release -o /out
+COPY . .
+
+WORKDIR /app/Ecommerce.API
+RUN dotnet publish -c Release -o /out
 
 # Runtime stage
 FROM mcr.microsoft.com/dotnet/aspnet:9.0

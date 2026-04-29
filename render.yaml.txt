@@ -1,0 +1,11 @@
+services:
+  - type: web
+    name: ecommerce-api
+    runtime: dotnet
+    repo: https://github.com/hidytech-a11y/Ecommerce
+    branch: main
+    buildCommand: dotnet publish Ecommerce.API/Ecommerce.API.csproj -c Release -o out
+    startCommand: dotnet out/Ecommerce.API.dll
+    envVars:
+      - key: ASPNETCORE_URLS
+        value: http://0.0.0.0:10000

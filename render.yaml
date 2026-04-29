@@ -1,9 +1,8 @@
 services:
   - type: web
     name: ecommerce-api
-    runtime: dotnet
-    repo: https://github.com/hidytech-a11y/Ecommerce
-    branch: main
+    env: docker
+    plan: free
     buildCommand: dotnet publish Ecommerce.API/Ecommerce.API.csproj -c Release -o out
     startCommand: dotnet out/Ecommerce.API.dll
     envVars:

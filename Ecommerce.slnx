@@ -1,5 +1,6 @@
 <Solution>
   <Folder Name="/src/">
+    <File Path="render.yaml" />
     <Project Path="Ecommerce.API/Ecommerce.API.csproj" />
     <Project Path="Ecommerce.Application/Ecommerce.Application.csproj" />
     <Project Path="Ecommerce.Domain/Ecommerce.Domain.csproj" />

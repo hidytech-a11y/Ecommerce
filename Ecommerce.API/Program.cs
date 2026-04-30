@@ -242,14 +242,16 @@ var app = builder.Build();
 await AdminSeeder.SeedAsync(app.Services);
 
 // Configure the HTTP request pipeline.
-if (app.Environment.IsDevelopment())
-{
-    var port = Environment.GetEnvironmentVariable("PORT") ?? "10000";
-    app.Urls.Add($"http://0.0.0.0:{port}");
+var port = Environment.GetEnvironmentVariable("PORT") ?? "10000";
+app.Urls.Add($"http://0.0.0.0:{port}");
 
-    app.UseSwagger();
-    app.UseSwaggerUI();
-}
+app.UseSwagger();
+app.UseSwaggerUI(c =>
+{
+    c.SwaggerEndpoint("/swagger/v1/swagger.json", "Ecommerce API V1");
+    // Optional:
+    // c.RoutePrefix = string.Empty;
+});
 
 app.UseSerilogRequestLogging();
 

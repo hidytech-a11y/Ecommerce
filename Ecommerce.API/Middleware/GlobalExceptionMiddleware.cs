@@ -97,7 +97,7 @@ public class GlobalExceptionMiddleware
                 {
                     Title = "Internal Server Error",
                     Status = 500,
-                    Detail = "An unexpected error occurred.",
+                    Detail = ex.ToString(),
                     Instance = context.Request.Path,
                     Extensions =
                     {

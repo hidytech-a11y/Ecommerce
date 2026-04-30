@@ -22,6 +22,8 @@ using Serilog;
 using System.Text;
 using System.Text.Json;
 using System.Threading.RateLimiting;
+using Microsoft.Extensions.Diagnostics.HealthChecks;
+using Npgsql;
 
 
 var builder = WebApplication.CreateBuilder(args);
@@ -165,13 +167,14 @@ Log.Logger = new LoggerConfiguration()
         rollingInterval: RollingInterval.Day)
     .CreateLogger();
 
-/*
+
 builder.Services.AddHealthChecks()
-    .AddSqlServer(
+    .AddNpgSql(
         builder.Configuration.GetConnectionString("DefaultConnection"),
-        name: "sqlserver",
-        tags: new[] { "db", "ready" })
-    .AddRedis(
+        name: "postgres",
+        tags: new[] { "db", "ready" });
+
+    /*.AddRedis(
         builder.Configuration["Redis:ConnectionString"],
         name: "redis",
         tags: new[] { "cache", "ready" });*/

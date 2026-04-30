@@ -8,6 +8,7 @@ using Ecommerce.Infrastructure.Persistence;
 using FluentValidation;
 using FluentValidation.AspNetCore;
 using Hangfire;
+using Hangfire.PostgreSql;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using Microsoft.AspNetCore.Identity;
@@ -125,8 +126,16 @@ builder.Services.AddHangfire(config =>
     config.SetDataCompatibilityLevel(CompatibilityLevel.Version_180)
           .UseSimpleAssemblyNameTypeSerializer()
           .UseRecommendedSerializerSettings()
-          .UseSqlServerStorage(
-              builder.Configuration.GetConnectionString("DefaultConnection")));
+          .UsePostgreSqlStorage(
+              builder.Configuration.GetConnectionString("DefaultConnection"),
+              new PostgreSqlStorageOptions
+              {
+                  QueuePollInterval = TimeSpan.FromSeconds(15),
+                  InvisibilityTimeout = TimeSpan.FromMinutes(5),
+                  DistributedLockTimeout = TimeSpan.FromMinutes(5)
+              }));
+
+builder.Services.AddHangfireServer();
 
 //API Versioning configuration
 
@@ -143,7 +152,6 @@ builder.Services.AddApiVersioning(options =>
     options.SubstituteApiVersionInUrl = true;
 });
 
-builder.Services.AddHangfireServer();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 

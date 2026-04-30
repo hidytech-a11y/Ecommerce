@@ -246,8 +246,9 @@ if (app.Environment.IsDevelopment())
 {
     var port = Environment.GetEnvironmentVariable("PORT") ?? "10000";
     app.Urls.Add($"http://0.0.0.0:{port}");
-    //app.UseSwagger();
-    //app.UseSwaggerUI();
+
+    app.UseSwagger();
+    app.UseSwaggerUI();
 }
 
 app.UseSerilogRequestLogging();

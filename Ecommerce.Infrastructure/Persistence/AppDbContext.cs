@@ -54,6 +54,12 @@ public class AppDbContext : DbContext
             .Property(p => p.Price)
             .HasPrecision(18, 2);
 
+        builder.Entity<Product>()
+            .Property(p => p.RowVersion)
+            .IsRowVersion()
+            .IsConcurrencyToken()
+            .IsRequired(false);
+
         builder.Entity<Discount>()
             .Property(d => d.Value)
             .HasPrecision(18, 2);

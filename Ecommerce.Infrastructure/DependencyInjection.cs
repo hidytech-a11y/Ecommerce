@@ -30,7 +30,9 @@ public static class DependencyInjection
         services.AddScoped<IOrderRepository, OrderRepository>();
         services.AddScoped<IDiscountRepository, DiscountRepository>();
 
+        //Cart Service
         services.AddScoped<ICartRepository, CartRepository>();
+        services.AddScoped<ICartService, CartService>();
 
         // AuthService
         services.AddScoped<IAuthService, AuthService>();

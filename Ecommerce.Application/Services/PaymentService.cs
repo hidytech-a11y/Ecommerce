@@ -224,6 +224,7 @@ public class PaymentService : IPaymentService
         _logger.LogInformation(
             "Order marked as PAID and outbox event created. OrderId={OrderId} Reference={Reference}",
             order.Id,
-            reference);
+            reference
+        );
     }
 }

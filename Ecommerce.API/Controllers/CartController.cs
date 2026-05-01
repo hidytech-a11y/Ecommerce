@@ -1,4 +1,5 @@
 ﻿using Ecommerce.Application.Interfaces;
+using Ecommerce.Domain.Entities;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using System.Security.Claims;
@@ -15,9 +16,10 @@ public class CartController : ControllerBase
         _cartService = cartService;
     }
 
+
     private Guid GetUserId()
     {
-        var userIdClaim = User.FindFirst("sub")?.Value;
+        var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
 
         if (string.IsNullOrEmpty(userIdClaim))
         {
@@ -27,7 +29,7 @@ public class CartController : ControllerBase
         return Guid.Parse(userIdClaim);
     }
 
-    [HttpPost("add")]
+[HttpPost("add")]
     public async Task<IActionResult> Add(Guid productId, int quantity)
     {
         var userId = GetUserId();

@@ -31,7 +31,18 @@ public class CartService : ICartService
             await _cartRepo.AddAsync(cart);
         }
 
-        cart.AddItem(productId, quantity);
+        //CHECK EXISTING ITEM FIRST
+        var existingItem = cart.Items.FirstOrDefault(x => x.ProductId == productId);
+
+        if (existingItem != null)
+        {
+            existingItem.IncreaseQuantity(quantity);
+        }
+        else
+        {
+            //Add new item via domain
+            cart.AddItem(productId, quantity);
+        }
 
         await _cartRepo.SaveChangesAsync();
     }
@@ -56,7 +67,6 @@ public class CartService : ICartService
             return new CartResponse([], 0);
 
         var items = new List<CartItemResponse>();
-
         decimal total = 0;
 
         foreach (var item in cart.Items)

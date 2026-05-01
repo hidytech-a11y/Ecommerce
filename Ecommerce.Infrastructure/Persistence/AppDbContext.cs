@@ -75,5 +75,18 @@ public class AppDbContext : DbContext
         builder.Entity<OrderItem>()
             .Property(o => o.FinalPriceSnapshot)
             .HasPrecision(18, 2);
+
+        builder.Entity<Cart>(builder =>
+        {
+            builder.HasKey(c => c.Id);
+
+            builder.HasMany(c => c.Items)
+                   .WithOne()
+                   .HasForeignKey("CartId")
+                   .OnDelete(DeleteBehavior.Cascade);
+
+            builder.Navigation(c => c.Items)
+                   .UsePropertyAccessMode(PropertyAccessMode.Field);
+        });
     }
 }

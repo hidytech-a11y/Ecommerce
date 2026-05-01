@@ -1,6 +1,7 @@
 ﻿using Ecommerce.Application.Interfaces;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using System.Security.Claims;
 
 [Authorize]
 [ApiController]
@@ -14,10 +15,22 @@ public class CartController : ControllerBase
         _cartService = cartService;
     }
 
+    private Guid GetUserId()
+    {
+        var userIdClaim = User.FindFirst("sub")?.Value;
+
+        if (string.IsNullOrEmpty(userIdClaim))
+        {
+            throw new UnauthorizedAccessException("Invalid token: user id missing");
+        }
+
+        return Guid.Parse(userIdClaim);
+    }
+
     [HttpPost("add")]
     public async Task<IActionResult> Add(Guid productId, int quantity)
     {
-        var userId = Guid.Parse(User.FindFirst("id")!.Value);
+        var userId = GetUserId();
 
         await _cartService.AddToCartAsync(userId, productId, quantity);
 
@@ -27,7 +40,7 @@ public class CartController : ControllerBase
     [HttpGet]
     public async Task<IActionResult> Get()
     {
-        var userId = Guid.Parse(User.FindFirst("id")!.Value);
+        var userId = GetUserId();
 
         var cart = await _cartService.GetCartAsync(userId);
 
@@ -37,7 +50,7 @@ public class CartController : ControllerBase
     [HttpDelete("remove")]
     public async Task<IActionResult> Remove(Guid productId)
     {
-        var userId = Guid.Parse(User.FindFirst("id")!.Value);
+        var userId = GetUserId();
 
         await _cartService.RemoveFromCartAsync(userId, productId);
 
@@ -47,7 +60,7 @@ public class CartController : ControllerBase
     [HttpDelete("clear")]
     public async Task<IActionResult> Clear()
     {
-        var userId = Guid.Parse(User.FindFirst("id")!.Value);
+        var userId = GetUserId();
 
         await _cartService.ClearCartAsync(userId);
 

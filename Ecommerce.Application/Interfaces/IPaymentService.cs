@@ -9,5 +9,6 @@ public interface IPaymentService
         Guid userId,
         InitializePaymentRequest request);
 
+    Task VerifyPaymentAsync(string reference);
     Task HandleWebhookAsync(HttpRequest request);
 }

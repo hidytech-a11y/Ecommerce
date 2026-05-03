@@ -52,14 +52,24 @@ public class PaymentsController : ControllerBase
         return Ok(new { message = "Payment verified successfully" });
     }
 
-    
+
     [AllowAnonymous]
     [HttpPost("webhook")]
     public async Task<IActionResult> Webhook()
     {
         try
         {
-            var signature = Request.Headers["x-paystack-signature"].FirstOrDefault();
+            //LOG ALL HEADERS (TEMP DEBUG)
+            foreach (var header in Request.Headers)
+            {
+                _logger.LogInformation("HEADER: {Key} = {Value}", header.Key, header.Value);
+            }
+
+            //SAFE HEADER EXTRACTION
+            var signature =
+                Request.Headers.TryGetValue("x-paystack-signature", out var sig1) ? sig1.FirstOrDefault() :
+                Request.Headers.TryGetValue("X-Paystack-Signature", out var sig2) ? sig2.FirstOrDefault() :
+                null;
 
             if (string.IsNullOrEmpty(signature))
             {
@@ -67,14 +77,14 @@ public class PaymentsController : ControllerBase
                 return Unauthorized("Missing Paystack signature");
             }
 
-            // Read raw body
+            //Read raw body
             Request.EnableBuffering();
 
             using var reader = new StreamReader(Request.Body, Encoding.UTF8, leaveOpen: true);
             var body = await reader.ReadToEndAsync();
             Request.Body.Position = 0;
 
-            // Validate signature
+            //Validate signature
             var secret = _config["Paystack:SecretKey"];
 
             using var hmac = new HMACSHA512(Encoding.UTF8.GetBytes(secret));
@@ -84,14 +94,15 @@ public class PaymentsController : ControllerBase
                 .Replace("-", "")
                 .ToLower();
 
-            if (computedSignature != signature)
+            if (!string.Equals(computedSignature, signature, StringComparison.OrdinalIgnoreCase))
             {
-                _logger.LogWarning(" Invalid Paystack signature");
+                _logger.LogWarning("Invalid Paystack signature");
                 return Unauthorized("Invalid Paystack signature");
             }
 
             _logger.LogInformation("Paystack webhook verified");
 
+            //Deserialize payload
             var payload = JsonSerializer.Deserialize<PaystackWebhookDto>(body);
 
             if (payload == null)

@@ -18,33 +18,15 @@ public class CartService : ICartService
 
     public async Task AddToCartAsync(Guid userId, Guid productId, int quantity)
     {
+        if (quantity <= 0)
+            throw new BadRequestException("Quantity must be greater than zero.");
+
         var product = await _productRepo.GetByIdAsync(productId);
 
         if (product is null)
             throw new NotFoundException("Product not found.");
 
-        var cart = await _cartRepo.GetByUserIdAsync(userId);
-
-        if (cart is null)
-        {
-            cart = new Cart(userId);
-            await _cartRepo.AddAsync(cart);
-        }
-
-        //CHECK EXISTING ITEM FIRST
-        var existingItem = cart.Items.FirstOrDefault(x => x.ProductId == productId);
-
-        if (existingItem != null)
-        {
-            existingItem.IncreaseQuantity(quantity);
-        }
-        else
-        {
-            //Add new item via domain
-            cart.AddItem(productId, quantity);
-        }
-
-        await _cartRepo.SaveChangesAsync();
+        await _cartRepo.AddItemAsync(userId, productId, quantity);
     }
 
     public async Task RemoveFromCartAsync(Guid userId, Guid productId)
@@ -54,9 +36,7 @@ public class CartService : ICartService
         if (cart is null)
             return;
 
-        cart.RemoveItem(productId);
-
-        await _cartRepo.SaveChangesAsync();
+        await _cartRepo.RemoveItemAsync(userId, productId);
     }
 
     public async Task<CartResponse> GetCartAsync(Guid userId)
@@ -96,8 +76,6 @@ public class CartService : ICartService
 
         if (cart is null) return;
 
-        cart.Clear();
-
-        await _cartRepo.SaveChangesAsync();
+        await _cartRepo.ClearAsync(userId);
     }
 }

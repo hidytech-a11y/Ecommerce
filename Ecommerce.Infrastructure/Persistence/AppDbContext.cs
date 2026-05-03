@@ -80,6 +80,12 @@ public class AppDbContext : DbContext
         {
             builder.HasKey(c => c.Id);
 
+            builder.Property(c => c.Id)
+                   .ValueGeneratedNever();
+
+            builder.HasIndex(c => c.UserId)
+                   .IsUnique();
+
             builder.HasMany(c => c.Items)
                    .WithOne()
                    .HasForeignKey("CartId")
@@ -87,6 +93,17 @@ public class AppDbContext : DbContext
 
             builder.Navigation(c => c.Items)
                    .UsePropertyAccessMode(PropertyAccessMode.Field);
+        });
+
+        builder.Entity<CartItem>(builder =>
+        {
+            builder.HasKey(i => i.Id);
+
+            builder.Property(i => i.Id)
+                   .ValueGeneratedNever();
+
+            builder.HasIndex("CartId", nameof(CartItem.ProductId))
+                   .IsUnique();
         });
     }
 }

@@ -26,7 +26,26 @@ public class CartService : ICartService
         if (product is null)
             throw new NotFoundException("Product not found.");
 
-        await _cartRepo.AddItemAsync(userId, productId, quantity);
+        var cart = await _cartRepo.GetByUserIdAsync(userId);
+
+        if (cart is null)
+        {
+            cart = new Cart(userId);
+            await _cartRepo.AddAsync(cart);
+        }
+
+        var existingItem = cart.Items.FirstOrDefault(x => x.ProductId == productId);
+
+        if (existingItem != null)
+        {
+            existingItem.IncreaseQuantity(quantity);
+        }
+        else
+        {
+            cart.AddItem(productId, quantity);
+        }
+
+        await _cartRepo.SaveChangesAsync();
     }
 
     public async Task RemoveFromCartAsync(Guid userId, Guid productId)

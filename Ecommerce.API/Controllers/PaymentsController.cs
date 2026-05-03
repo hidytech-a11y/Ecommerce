@@ -30,6 +30,11 @@ public class PaymentsController : ControllerBase
     [HttpPost("initialize")]
     public async Task<IActionResult> Initialize([FromBody] InitializePaymentRequest request)
     {
+        foreach (var claim in User.Claims)
+        {
+            _logger.LogInformation("CLAIM: {Type} = {Value}", claim.Type, claim.Value);
+        }
+
         var userId = GetUserId();
 
         var response = await _paymentService.InitializePaymentAsync(userId, request);
@@ -113,13 +118,15 @@ public class PaymentsController : ControllerBase
         }
     }
 
-    
+
     private Guid GetUserId()
     {
-        var userId = User.FindFirst("sub")?.Value;
+        var userId =
+            User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value
+            ?? User.FindFirst("sub")?.Value;
 
         if (string.IsNullOrEmpty(userId))
-            throw new UnauthorizedAccessException("Invalid token");
+            throw new UnauthorizedAccessException("Invalid token: user id missing");
 
         return Guid.Parse(userId);
     }

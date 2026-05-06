@@ -25,16 +25,26 @@ public static class AdminSeeder
         var adminEmail = config["Admin:Email"];
         var adminPassword = config["Admin:Password"];
 
+        if (string.IsNullOrWhiteSpace(adminEmail) ||
+            string.IsNullOrWhiteSpace(adminPassword))
+        {
+            throw new Exception("Admin credentials are missing in configuration.");
+        }
+
         var exists = await userRepository.ExistsByEmailAsync(adminEmail);
 
-        if (exists) return;
+        if (exists)
+            return;
 
         var hashedPassword = passwordHasher.Hash(adminPassword);
 
         var admin = new User(
+            "System",
+            "Admin",
             adminEmail,
             hashedPassword,
-            UserRole.Admin);
+            UserRole.Admin
+        );
 
         await userRepository.AddAsync(admin);
         await userRepository.SaveChangesAsync();

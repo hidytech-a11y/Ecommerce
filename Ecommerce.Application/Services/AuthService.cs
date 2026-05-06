@@ -31,6 +31,8 @@ public class AuthService : IAuthService
         var hashedPassword = _passwordHasher.Hash(request.Password);
 
         var user = new User(
+            request.FirstName,
+            request.LastName,
             request.Email,
             hashedPassword,
             UserRole.Customer);

@@ -188,6 +188,22 @@ builder.Services.AddScoped<IPasswordHasher<User>, PasswordHasher<User>>();
 builder.Services.AddHostedService<PaymentReconciliationService>();
 builder.Services.AddHostedService<OutboxProcessor>();
 
+builder.Services.AddCors(options =>
+{
+    options.AddPolicy("Frontend", policy =>
+    {
+        policy
+            .WithOrigins(
+                "http://localhost:3000", // React local
+                "http://localhost:5173", // Vite local
+                "https://yourfrontend.com" // Production frontend
+            )
+            .AllowAnyHeader()
+            .AllowAnyMethod()
+            .AllowCredentials();
+    });
+});
+
 
 builder.Services.AddControllers();
 
@@ -266,6 +282,8 @@ app.UseHttpsRedirection();
 app.UseMiddleware<PaystackWebhookMiddleware>();
 app.UseMiddleware<GlobalExceptionMiddleware>();
 app.UseRateLimiter();
+
+app.UseCors("Frontend");
 
 app.UseAuthentication();
 app.UseAuthorization();

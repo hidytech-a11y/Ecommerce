@@ -105,5 +105,17 @@ public class AppDbContext : DbContext
             builder.HasIndex("CartId", nameof(CartItem.ProductId))
                    .IsUnique();
         });
+
+
+        builder.Entity<Product>(e =>
+        {
+            e.Property(p => p.FrontImageUrl).HasMaxLength(2048);
+            e.Property(p => p.BackImageUrl).HasMaxLength(2048);
+            e.Property(p => p.SideImageUrl).HasMaxLength(2048);
+            e.Property(p => p.FrontImagePublicId).HasMaxLength(512);
+            e.Property(p => p.BackImagePublicId).HasMaxLength(512);
+            e.Property(p => p.SideImagePublicId).HasMaxLength(512);
+        });
+
     }
 }

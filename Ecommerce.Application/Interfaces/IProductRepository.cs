@@ -17,4 +17,5 @@ public interface IProductRepository
         GetProductsAsync(ProductQueryParameters query);
 
     Task SaveChangesAsync();
+    Task<Product?> GetTrackedByIdAsync(Guid id);
 }

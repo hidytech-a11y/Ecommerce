@@ -6,5 +6,8 @@ public record UpdateProductRequest(
     decimal Price,
     int StockQuantity,
     Guid CategoryId,
-    bool IsAvailable
+    bool IsAvailable,
+    string? FrontImageUrl,
+    string? backImageUrl,
+    string? SideImageUrl
 );

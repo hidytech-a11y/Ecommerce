@@ -93,4 +93,22 @@ public class ProductsController : ControllerBase
         return Ok(ApiResponse<object>
             .SuccessResponse(null, "Discount created"));
     }
+
+    [Authorize(Roles = "Admin")]
+    [HttpPut("{id}/images")]
+    [Consumes("multipart/form-data")]
+    public async Task<IActionResult> UpdateProductImages(Guid id, [FromForm] UpdateProductImagesRequest request)
+    {
+        var input = new UpdateProductImagesInput(
+            Front: request.FrontImage is null ? null : new ImageFileInput(request.FrontImage.FileName, request.FrontImage.ContentType, request.FrontImage.OpenReadStream()),
+            Back: request.BackImage is null ? null : new ImageFileInput(request.BackImage.FileName, request.BackImage.ContentType, request.BackImage.OpenReadStream()),
+            Side: request.SideImage is null ? null : new ImageFileInput(request.SideImage.FileName, request.SideImage.ContentType, request.SideImage.OpenReadStream()),
+            RemoveFront: request.RemoveFront,
+            RemoveBack: request.RemoveBack,
+            RemoveSide: request.RemoveSide
+        );
+
+        var product = await _service.UpdateProductImagesAsync(id, input);
+        return Ok(ApiResponse<ProductResponse>.SuccessResponse(product, "Product images updated"));
+    }
 }

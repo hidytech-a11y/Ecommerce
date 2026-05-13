@@ -3,6 +3,7 @@ using Ecommerce.Application.Common.Security;
 using Ecommerce.Application.Interfaces;
 using Ecommerce.Application.Services;
 using Ecommerce.Infrastructure.Caching;
+using Ecommerce.Infrastructure.Cloudinary;
 using Ecommerce.Infrastructure.Email;
 using Ecommerce.Infrastructure.Identity;
 using Ecommerce.Infrastructure.Payments;
@@ -49,6 +50,9 @@ public static class DependencyInjection
         // Payment
         services.AddHttpClient<IPaystackClient, PaystackClient>();
         services.AddScoped<IPaymentService, PaymentService>();
+
+        //Cloudinary
+        services.AddSingleton<ICloudinaryService, CloudinaryService>();
 
         // Redis Connection
         //services.AddSingleton<IConnectionMultiplexer>(sp =>

@@ -46,21 +46,21 @@ public class ProductRepository : IProductRepository
             .AsNoTracking()
             .AsQueryable();
 
-        // 🔍 Search by name
+        //  Search by name
         if (!string.IsNullOrWhiteSpace(query.Search))
         {
             productsQuery = productsQuery
                 .Where(p => p.Name.Contains(query.Search));
         }
 
-        // 📂 Filter by category
+        // Filter by category
         if (query.CategoryId.HasValue)
         {
             productsQuery = productsQuery
                 .Where(p => p.CategoryId == query.CategoryId.Value);
         }
 
-        // 💰 Price filtering
+        // Price filtering
         if (query.MinPrice.HasValue)
         {
             productsQuery = productsQuery
@@ -88,4 +88,10 @@ public class ProductRepository : IProductRepository
     {
         await _context.SaveChangesAsync();
     }
+
+    public async Task<Product?> GetTrackedByIdAsync(Guid id)
+    {
+        return await _context.Products.FirstOrDefaultAsync(p => p.Id == id);
+    }
+
 }

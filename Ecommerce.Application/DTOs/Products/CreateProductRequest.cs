@@ -6,5 +6,8 @@ public record CreateProductRequest(
     decimal Price,
     int StockQuantity,
     Guid CategoryId,
-    bool IsAvailable
+    bool IsAvailable,
+    string? FrontImageUrl,
+    string? backImageUrl,
+    string? SideImageUrl
 );

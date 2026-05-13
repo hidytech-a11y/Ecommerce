@@ -14,4 +14,5 @@ public interface IProductService
     Task<ProductResponse> GetProductAsync(Guid id);
 
     Task<PagedResult<ProductResponse>> GetProductsAsync(ProductQueryParameters query);
+    Task<ProductResponse> UpdateProductImagesAsync(Guid id, UpdateProductImagesInput input);
 }

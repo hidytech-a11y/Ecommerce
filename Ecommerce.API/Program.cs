@@ -255,10 +255,104 @@ builder.Services.AddSwaggerGen(options =>
 
 var app = builder.Build();
 
+// REPLACE WITH THIS
 using (var scope = app.Services.CreateScope())
 {
-    var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-    db.Database.Migrate();
+    var logger = scope.ServiceProvider
+        .GetRequiredService<ILogger<Program>>();
+
+    var db = scope.ServiceProvider
+        .GetRequiredService<AppDbContext>();
+
+    try
+    {
+        // Check if __EFMigrationsHistory table exists
+        var conn = db.Database.GetDbConnection();
+        await conn.OpenAsync();
+
+        await using var cmd = conn.CreateCommand();
+        cmd.CommandText = """
+            SELECT EXISTS (
+                SELECT FROM information_schema.tables 
+                WHERE table_schema = 'public' 
+                AND table_name = '__EFMigrationsHistory'
+            );
+            """;
+
+        var historyExists = (bool)(await cmd.ExecuteScalarAsync() ?? false);
+
+        await conn.CloseAsync();
+
+        if (!historyExists)
+        {
+            logger.LogWarning(
+                "No __EFMigrationsHistory table found. " +
+                "Database already has tables from a previous deployment. " +
+                "Registering existing migration as applied...");
+
+            // Create the history table
+            await db.Database.ExecuteSqlRawAsync("""
+                CREATE TABLE IF NOT EXISTS "__EFMigrationsHistory" (
+                    "MigrationId" character varying(150) NOT NULL,
+                    "ProductVersion" character varying(32) NOT NULL,
+                    CONSTRAINT "PK___EFMigrationsHistory" 
+                        PRIMARY KEY ("MigrationId")
+                );
+                """);
+
+            // Get all migration names from the assembly
+            var migrations = db.Database
+                .GetMigrations()
+                .ToList();
+
+            foreach (var migration in migrations)
+            {
+                await db.Database.ExecuteSqlRawAsync($"""
+                    INSERT INTO "__EFMigrationsHistory" 
+                        ("MigrationId", "ProductVersion")
+                    VALUES ('{migration}', '9.0.0')
+                    ON CONFLICT DO NOTHING;
+                    """);
+
+                logger.LogInformation(
+                    "Registered migration as applied: {Migration}",
+                    migration);
+            }
+
+            logger.LogInformation(
+                "All existing migrations registered. " +
+                "Database is now tracked by EF Core.");
+        }
+        else
+        {
+            // History table exists — check for pending migrations normally
+            var pending = await db.Database
+                .GetPendingMigrationsAsync();
+
+            if (pending.Any())
+            {
+                logger.LogInformation(
+                    "Applying {Count} pending migration(s)...",
+                    pending.Count());
+
+                await db.Database.MigrateAsync();
+
+                logger.LogInformation(
+                    "Migrations applied successfully.");
+            }
+            else
+            {
+                logger.LogInformation(
+                    "Database is up to date. No migrations to apply.");
+            }
+        }
+    }
+    catch (Exception ex)
+    {
+        logger.LogError(ex,
+            "A critical error occurred during database migration.");
+        throw;
+    }
 }
 
 await AdminSeeder.SeedAsync(app.Services);

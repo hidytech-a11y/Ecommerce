@@ -6,7 +6,7 @@ using Microsoft.EntityFrameworkCore.Migrations;
 namespace Ecommerce.Infrastructure.Migrations
 {
     /// <inheritdoc />
-    public partial class InitialPostgres : Migration
+    public partial class InitialCreate : Migration
     {
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
@@ -97,7 +97,13 @@ namespace Ecommerce.Infrastructure.Migrations
                     StockQuantity = table.Column<int>(type: "integer", nullable: false),
                     IsAvailable = table.Column<bool>(type: "boolean", nullable: false),
                     CategoryId = table.Column<Guid>(type: "uuid", nullable: false),
-                    RowVersion = table.Column<byte[]>(type: "bytea", rowVersion: true, nullable: false),
+                    FrontImageUrl = table.Column<string>(type: "character varying(2048)", maxLength: 2048, nullable: true),
+                    BackImageUrl = table.Column<string>(type: "character varying(2048)", maxLength: 2048, nullable: true),
+                    SideImageUrl = table.Column<string>(type: "character varying(2048)", maxLength: 2048, nullable: true),
+                    FrontImagePublicId = table.Column<string>(type: "character varying(512)", maxLength: 512, nullable: true),
+                    BackImagePublicId = table.Column<string>(type: "character varying(512)", maxLength: 512, nullable: true),
+                    SideImagePublicId = table.Column<string>(type: "character varying(512)", maxLength: 512, nullable: true),
+                    xmin = table.Column<uint>(type: "xid", rowVersion: true, nullable: false),
                     CreatedAt = table.Column<DateTime>(type: "timestamp with time zone", nullable: false)
                 },
                 constraints: table =>
@@ -110,6 +116,8 @@ namespace Ecommerce.Infrastructure.Migrations
                 columns: table => new
                 {
                     Id = table.Column<Guid>(type: "uuid", nullable: false),
+                    FirstName = table.Column<string>(type: "text", nullable: false),
+                    LastName = table.Column<string>(type: "text", nullable: false),
                     Email = table.Column<string>(type: "text", nullable: false),
                     PasswordHash = table.Column<string>(type: "text", nullable: false),
                     Role = table.Column<int>(type: "integer", nullable: false),
@@ -128,7 +136,7 @@ namespace Ecommerce.Infrastructure.Migrations
                     Id = table.Column<Guid>(type: "uuid", nullable: false),
                     ProductId = table.Column<Guid>(type: "uuid", nullable: false),
                     Quantity = table.Column<int>(type: "integer", nullable: false),
-                    CartId = table.Column<Guid>(type: "uuid", nullable: true)
+                    CartId = table.Column<Guid>(type: "uuid", nullable: false)
                 },
                 constraints: table =>
                 {
@@ -137,7 +145,8 @@ namespace Ecommerce.Infrastructure.Migrations
                         name: "FK_CartItem_Carts_CartId",
                         column: x => x.CartId,
                         principalTable: "Carts",
-                        principalColumn: "Id");
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Cascade);
                 });
 
             migrationBuilder.CreateTable(
@@ -165,9 +174,16 @@ namespace Ecommerce.Infrastructure.Migrations
                 });
 
             migrationBuilder.CreateIndex(
-                name: "IX_CartItem_CartId",
+                name: "IX_CartItem_CartId_ProductId",
                 table: "CartItem",
-                column: "CartId");
+                columns: new[] { "CartId", "ProductId" },
+                unique: true);
+
+            migrationBuilder.CreateIndex(
+                name: "IX_Carts_UserId",
+                table: "Carts",
+                column: "UserId",
+                unique: true);
 
             migrationBuilder.CreateIndex(
                 name: "IX_Discounts_ProductId",

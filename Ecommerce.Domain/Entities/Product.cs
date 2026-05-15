@@ -10,7 +10,7 @@ public class Product : BaseEntity
     public int StockQuantity { get; private set; }
     public bool IsAvailable { get; private set; }
     public Guid CategoryId { get; private set; }
-    public byte[]? RowVersion { get; private set; }
+    //public byte[]? RowVersion { get; private set; }
 
     
     public string? FrontImageUrl { get; private set; }

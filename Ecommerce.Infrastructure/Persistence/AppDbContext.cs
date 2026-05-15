@@ -1,7 +1,5 @@
 ﻿using Ecommerce.Domain.Entities;
 using Microsoft.EntityFrameworkCore;
-using System.Collections.Generic;
-using System.Reflection.Emit;
 
 namespace Ecommerce.Infrastructure.Persistence;
 
@@ -28,19 +26,7 @@ public class AppDbContext : DbContext
             .IsUnique();
 
         builder.Entity<Product>()
-            .Property(p => p.RowVersion)
-            .IsRowVersion();
-
-        builder.Entity<Order>()
-            .HasMany(o => o.Items)
-            .WithOne()
-            .OnDelete(DeleteBehavior.Cascade);
-
-        builder.Entity<Discount>()
-            .HasIndex(d => d.ProductId);
-
-        builder.Entity<Product>()
-        .HasIndex(p => p.Name);
+            .HasIndex(p => p.Name);
 
         builder.Entity<Product>()
             .HasIndex(p => p.CategoryId);
@@ -48,21 +34,31 @@ public class AppDbContext : DbContext
         builder.Entity<Product>()
             .HasIndex(p => p.Price);
 
-        base.OnModelCreating(builder);
-
         builder.Entity<Product>()
             .Property(p => p.Price)
             .HasPrecision(18, 2);
 
         builder.Entity<Product>()
-            .Property(p => p.RowVersion)
-            .IsRowVersion()
-            .IsConcurrencyToken()
-            .IsRequired(false);
+            .Property<uint>("xmin")
+            .HasColumnName("xmin")
+            .HasColumnType("xid")
+            .ValueGeneratedOnAddOrUpdate()
+            .IsConcurrencyToken();
 
-        builder.Entity<Discount>()
-            .Property(d => d.Value)
-            .HasPrecision(18, 2);
+        builder.Entity<Product>(e =>
+        {
+            e.Property(p => p.FrontImageUrl).HasMaxLength(2048);
+            e.Property(p => p.BackImageUrl).HasMaxLength(2048);
+            e.Property(p => p.SideImageUrl).HasMaxLength(2048);
+            e.Property(p => p.FrontImagePublicId).HasMaxLength(512);
+            e.Property(p => p.BackImagePublicId).HasMaxLength(512);
+            e.Property(p => p.SideImagePublicId).HasMaxLength(512);
+        });
+
+        builder.Entity<Order>()
+            .HasMany(o => o.Items)
+            .WithOne()
+            .OnDelete(DeleteBehavior.Cascade);
 
         builder.Entity<Order>()
             .Property(o => o.TotalAmount)
@@ -76,46 +72,43 @@ public class AppDbContext : DbContext
             .Property(o => o.FinalPriceSnapshot)
             .HasPrecision(18, 2);
 
-        builder.Entity<Cart>(builder =>
+        builder.Entity<Discount>()
+            .HasIndex(d => d.ProductId);
+
+        builder.Entity<Discount>()
+            .Property(d => d.Value)
+            .HasPrecision(18, 2);
+
+        builder.Entity<Cart>(b =>
         {
-            builder.HasKey(c => c.Id);
+            b.HasKey(c => c.Id);
 
-            builder.Property(c => c.Id)
-                   .ValueGeneratedNever();
+            b.Property(c => c.Id)
+             .ValueGeneratedNever();
 
-            builder.HasIndex(c => c.UserId)
-                   .IsUnique();
+            b.HasIndex(c => c.UserId)
+             .IsUnique();
 
-            builder.HasMany(c => c.Items)
-                   .WithOne()
-                   .HasForeignKey("CartId")
-                   .OnDelete(DeleteBehavior.Cascade);
+            b.HasMany(c => c.Items)
+             .WithOne()
+             .HasForeignKey("CartId")
+             .OnDelete(DeleteBehavior.Cascade);
 
-            builder.Navigation(c => c.Items)
-                   .UsePropertyAccessMode(PropertyAccessMode.Field);
+            b.Navigation(c => c.Items)
+             .UsePropertyAccessMode(PropertyAccessMode.Field);
         });
 
-        builder.Entity<CartItem>(builder =>
+        builder.Entity<CartItem>(b =>
         {
-            builder.HasKey(i => i.Id);
+            b.HasKey(i => i.Id);
 
-            builder.Property(i => i.Id)
-                   .ValueGeneratedNever();
+            b.Property(i => i.Id)
+             .ValueGeneratedNever();
 
-            builder.HasIndex("CartId", nameof(CartItem.ProductId))
-                   .IsUnique();
+            b.HasIndex("CartId", nameof(CartItem.ProductId))
+             .IsUnique();
         });
 
-
-        builder.Entity<Product>(e =>
-        {
-            e.Property(p => p.FrontImageUrl).HasMaxLength(2048);
-            e.Property(p => p.BackImageUrl).HasMaxLength(2048);
-            e.Property(p => p.SideImageUrl).HasMaxLength(2048);
-            e.Property(p => p.FrontImagePublicId).HasMaxLength(512);
-            e.Property(p => p.BackImagePublicId).HasMaxLength(512);
-            e.Property(p => p.SideImagePublicId).HasMaxLength(512);
-        });
-
+        base.OnModelCreating(builder);
     }
 }

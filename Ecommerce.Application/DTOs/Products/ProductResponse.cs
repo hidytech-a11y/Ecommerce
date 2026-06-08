@@ -9,8 +9,8 @@ public record ProductResponse(
     bool DiscountApplied,
     int StockQuantity,
     bool IsAvailable,
-    string Category,
     string? FrontImageUrl,
-    string? backImageUrl,
-    string? SideImageUrl
+    string? BackImageUrl,
+    string? SideImageUrl,
+    string Category
 );

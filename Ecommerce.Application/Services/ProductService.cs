@@ -6,6 +6,7 @@ using Ecommerce.Application.Common.Pricing;
 using Ecommerce.Application.DTOs.Products;
 using Ecommerce.Application.Interfaces;
 using Ecommerce.Domain.Entities;
+using Microsoft.AspNetCore.Http;
 
 namespace Ecommerce.Application.Services;
 
@@ -27,23 +28,7 @@ public class ProductService : IProductService
         _cloudinary = cloudinary;
     }
 
-    public async Task<ProductResponse> CreateProductAsync(CreateProductRequest request)
-    {
-        var product = new Product(
-            request.Name,
-            request.Description,
-            request.Price,
-            request.StockQuantity,
-            request.CategoryId);
-
-        await _repository.AddAsync(product);
-        await _repository.SaveChangesAsync();
-
-        // Invalidate catalog cache by letting TTL expire naturally
-        // No direct delete since catalog keys are paginated
-
-        return MapToResponse(product, null);
-    }
+    
 
     public async Task<ProductResponse> UpdateProductAsync(Guid id, UpdateProductRequest request)
     {
@@ -114,7 +99,68 @@ public class ProductService : IProductService
         return response;
     }
 
-    public async Task<PagedResult<ProductResponse>> GetProductsAsync(ProductQueryParameters query)
+    public async Task<ProductResponse> CreateProductAsync(
+    CreateProductRequest request)
+    {
+        var product = new Product(
+            request.Name,
+            request.Description,
+            request.Price,
+            request.StockQuantity,
+            request.CategoryId);
+
+        var folder = $"ecommerce/products/{Guid.NewGuid()}";
+
+        if (request.FrontImage != null)
+        {
+            using var stream = request.FrontImage.OpenReadStream();
+
+            var (url, publicId) =
+                await _cloudinary.UploadAsync(
+                    stream,
+                    request.FrontImage.FileName,
+                    request.FrontImage.ContentType,
+                    folder);
+
+            product.SetFrontImage(url, publicId);
+        }
+
+        if (request.BackImage != null)
+        {
+            using var stream = request.BackImage.OpenReadStream();
+
+            var (url, publicId) =
+                await _cloudinary.UploadAsync(
+                    stream,
+                    request.BackImage.FileName,
+                    request.BackImage.ContentType,
+                    folder);
+
+            product.SetBackImage(url, publicId);
+        }
+
+        if (request.SideImage != null)
+        {
+            using var stream = request.SideImage.OpenReadStream();
+
+            var (url, publicId) =
+                await _cloudinary.UploadAsync(
+                    stream,
+                    request.SideImage.FileName,
+                    request.SideImage.ContentType,
+                    folder);
+
+            product.SetSideImage(url, publicId);
+        }
+
+        await _repository.AddAsync(product);
+        await _repository.SaveChangesAsync();
+
+        return MapToResponse(product, null);
+    }
+
+    public async Task<PagedResult<ProductResponse>> GetProductsAsync(
+    ProductQueryParameters query)
     {
         var cacheKey = CacheKeys.ProductsPage(
             query.Page,
@@ -127,10 +173,12 @@ public class ProductService : IProductService
         if (cachedProducts != null)
             return cachedProducts;
 
-        var (items, totalCount) = await _repository.GetProductsAsync(query);
+        var (items, totalCount) =
+            await _repository.GetProductsAsync(query);
 
-        var responses = items.Select(p =>
-            MapToResponse(p, null)).ToList();
+        var responses = items
+            .Select(p => MapToResponse(p, null))
+            .ToList();
 
         var result = new PagedResult<ProductResponse>
         {
@@ -161,10 +209,10 @@ public class ProductService : IProductService
             price < product.Price,
             product.StockQuantity,
             product.IsAvailable,
+            "",
             product.FrontImageUrl,
             product.BackImageUrl,
-            product.SideImageUrl,
-            ""
+            product.SideImageUrl
         );
     }
 

@@ -255,7 +255,7 @@ builder.Services.AddSwaggerGen(options =>
 
 var app = builder.Build();
 
-// REPLACE WITH THIS
+
 using (var scope = app.Services.CreateScope())
 {
     var logger = scope.ServiceProvider

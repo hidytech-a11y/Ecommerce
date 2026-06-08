@@ -48,11 +48,14 @@ public class ProductsController : ControllerBase
 
     [Authorize(Roles = "Admin")]
     [HttpPost]
-    public async Task<IActionResult> CreateProduct(CreateProductRequest request)
+    [Consumes("multipart/form-data")]
+    public async Task<IActionResult> CreateProduct(
+    [FromForm] CreateProductRequest request)
     {
         var product = await _service.CreateProductAsync(request);
 
-        return Ok(ApiResponse<ProductResponse>
+        return Ok(
+            ApiResponse<ProductResponse>
             .SuccessResponse(product, "Product created"));
     }
 

@@ -41,8 +41,11 @@ public static class DependencyInjection
         // ProductService
         services.AddScoped<IProductService, ProductService>();
 
-        // OrderService
+        // Order Service
         services.AddScoped<IOrderService, OrderService>();
+
+        //Admin Order Service
+        services.AddScoped<IAdminOrderService, AdminOrderService>();
 
         // Transaction Service
         //services.AddScoped<ITransaction, Transaction>();

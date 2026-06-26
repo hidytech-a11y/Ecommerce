@@ -14,8 +14,6 @@ public class Order : BaseEntity
     private readonly List<OrderItem> _items = new();
     public IReadOnlyCollection<OrderItem> Items => _items;
 
-
-
     private Order() { }
 
     public Order(Guid userId)
@@ -46,5 +44,19 @@ public class Order : BaseEntity
             throw new InvalidOperationException("Payment reference already set.");
 
         PaymentReference = reference;
+    }
+
+    // NEW: Admin status update
+    public void UpdateStatus(OrderStatus newStatus)
+    {
+        if (Status == OrderStatus.Paid && newStatus == OrderStatus.Pending)
+            throw new InvalidOperationException(
+                "Cannot change a paid order back to pending.");
+
+        if (Status == OrderStatus.Cancelled && newStatus != OrderStatus.Cancelled)
+            throw new InvalidOperationException(
+                "Cancelled orders cannot be reactivated.");
+
+        Status = newStatus;
     }
 }

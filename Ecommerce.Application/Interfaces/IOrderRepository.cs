@@ -1,4 +1,5 @@
 ﻿using Ecommerce.Application.Common.Interfaces;
+using Ecommerce.Application.DTOs.Orders;
 using Ecommerce.Domain.Entities;
 
 namespace Ecommerce.Application.Interfaces;
@@ -19,4 +20,11 @@ public interface IOrderRepository
 
     Task<IEnumerable<Order>> GetPendingPaymentOrdersAsync();
 
+    Task<(IEnumerable<Order> Items, int TotalCount)>GetAllOrdersAsync(OrderQueryParameters query);
+
+    // For admin stats
+    Task<IEnumerable<Order>> GetAllOrdersForStatsAsync();
+
+    // Update tracking for status changes
+    Task UpdateAsync(Order order);
 }

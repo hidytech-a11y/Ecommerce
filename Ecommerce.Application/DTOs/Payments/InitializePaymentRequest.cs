@@ -1,5 +1,6 @@
 ﻿namespace Ecommerce.Application.DTOs.Payments;
 
 public record InitializePaymentRequest(
-    Guid OrderId
+    Guid OrderId,
+    string? CallbackUrl = null  
 );

@@ -18,23 +18,36 @@ public class PaystackClient : IPaystackClient
     }
 
     public async Task<PaystackInitializeResponse> InitializeTransactionAsync(
+        string email,
         decimal amount,
-        string reference)
+        string reference,
+        string? callbackUrl = null)
     {
         var secret = _config["Paystack:SecretKey"];
 
         _httpClient.DefaultRequestHeaders.Authorization =
             new AuthenticationHeaderValue("Bearer", secret);
 
-        var payload = new
+        // Build payload dynamically so callback_url is only included when provided
+        var payloadDict = new Dictionary<string, object>
         {
-            email = "customer@email.com",
-            amount = (int)(amount * 100),
-            reference = reference
+            ["email"] = email,
+            ["amount"] = (int)(amount * 100),
+            ["reference"] = reference
         };
 
+        // Resolve callback URL: explicit > config default > none
+        var resolvedCallback = !string.IsNullOrWhiteSpace(callbackUrl)
+            ? callbackUrl
+            : _config["Paystack:DefaultCallbackUrl"];
+
+        if (!string.IsNullOrWhiteSpace(resolvedCallback))
+        {
+            payloadDict["callback_url"] = resolvedCallback;
+        }
+
         var content = new StringContent(
-            JsonSerializer.Serialize(payload),
+            JsonSerializer.Serialize(payloadDict),
             Encoding.UTF8,
             "application/json");
 

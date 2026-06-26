@@ -33,7 +33,6 @@ public class PaymentService : IPaymentService
         _userRepository = userRepository;
     }
 
-    
     public async Task<InitializePaymentResponse> InitializePaymentAsync(
         Guid userId,
         InitializePaymentRequest request)
@@ -47,22 +46,31 @@ public class PaymentService : IPaymentService
         if (order.Status != OrderStatus.Pending)
             throw new BadRequestException("Order cannot be paid.");
 
+        // Get the real user email so Paystack receives a valid customer email
+        var user = await _userRepository.GetByIdAsync(userId)
+                   ?? throw new NotFoundException("User not found.");
+
         var reference = PaymentReferenceGenerator.Generate();
 
         var payment = await _paystackClient.InitializeTransactionAsync(
-            order.TotalAmount,
-            reference);
+            email: user.Email,
+            amount: order.TotalAmount,
+            reference: reference,
+            callbackUrl: request.CallbackUrl);
 
         order.SetPaymentReference(reference);
 
         await _orderRepository.SaveChangesAsync();
 
-        _logger.LogInformation("Payment initialized. OrderId={OrderId}, Ref={Ref}", order.Id, reference);
+        _logger.LogInformation(
+            "Payment initialized. OrderId={OrderId}, Ref={Ref}, Callback={Callback}",
+            order.Id,
+            reference,
+            request.CallbackUrl ?? "(default)");
 
         return new InitializePaymentResponse(payment.AuthorizationUrl, reference);
     }
 
-    
     public async Task VerifyPaymentAsync(string reference)
     {
         var order = await _orderRepository.GetByPaymentReferenceAsync(reference);
@@ -105,7 +113,6 @@ public class PaymentService : IPaymentService
         _logger.LogInformation("Order marked as PAID. OrderId={OrderId}", order.Id);
     }
 
-    
     public async Task HandleWebhookAsync(HttpRequest request)
     {
         request.Body.Position = 0;

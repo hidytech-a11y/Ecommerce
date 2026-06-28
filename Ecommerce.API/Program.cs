@@ -255,6 +255,106 @@ builder.Services.AddSwaggerGen(options =>
 
 var app = builder.Build();
 
+
+using (var scope = app.Services.CreateScope())
+{
+    var logger = scope.ServiceProvider
+        .GetRequiredService<ILogger<Program>>();
+
+    var db = scope.ServiceProvider
+        .GetRequiredService<AppDbContext>();
+
+    try
+    {
+        // Check if __EFMigrationsHistory table exists
+        var conn = db.Database.GetDbConnection();
+        await conn.OpenAsync();
+
+        await using var cmd = conn.CreateCommand();
+        cmd.CommandText = """
+            SELECT EXISTS (
+                SELECT FROM information_schema.tables 
+                WHERE table_schema = 'public' 
+                AND table_name = '__EFMigrationsHistory'
+            );
+            """;
+
+        var historyExists = (bool)(await cmd.ExecuteScalarAsync() ?? false);
+
+        await conn.CloseAsync();
+
+        if (!historyExists)
+        {
+            logger.LogWarning(
+                "No __EFMigrationsHistory table found. " +
+                "Database already has tables from a previous deployment. " +
+                "Registering existing migration as applied...");
+
+            // Create the history table
+            await db.Database.ExecuteSqlRawAsync("""
+                CREATE TABLE IF NOT EXISTS "__EFMigrationsHistory" (
+                    "MigrationId" character varying(150) NOT NULL,
+                    "ProductVersion" character varying(32) NOT NULL,
+                    CONSTRAINT "PK___EFMigrationsHistory" 
+                        PRIMARY KEY ("MigrationId")
+                );
+                """);
+
+            // Get all migration names from the assembly
+            var migrations = db.Database
+                .GetMigrations()
+                .ToList();
+
+            foreach (var migration in migrations)
+            {
+                await db.Database.ExecuteSqlRawAsync($"""
+                    INSERT INTO "__EFMigrationsHistory" 
+                        ("MigrationId", "ProductVersion")
+                    VALUES ('{migration}', '9.0.0')
+                    ON CONFLICT DO NOTHING;
+                    """);
+
+                logger.LogInformation(
+                    "Registered migration as applied: {Migration}",
+                    migration);
+            }
+
+            logger.LogInformation(
+                "All existing migrations registered. " +
+                "Database is now tracked by EF Core.");
+        }
+        else
+        {
+            // History table exists — check for pending migrations normally
+            var pending = await db.Database
+                .GetPendingMigrationsAsync();
+
+            if (pending.Any())
+            {
+                logger.LogInformation(
+                    "Applying {Count} pending migration(s)...",
+                    pending.Count());
+
+                await db.Database.MigrateAsync();
+
+                logger.LogInformation(
+                    "Migrations applied successfully.");
+            }
+            else
+            {
+                logger.LogInformation(
+                    "Database is up to date. No migrations to apply.");
+            }
+        }
+    }
+    catch (Exception ex)
+    {
+        logger.LogError(ex,
+            "A critical error occurred during database migration.");
+        throw;
+    }
+}
+
 await AdminSeeder.SeedAsync(app.Services);
 
 // Configure the HTTP request pipeline.
@@ -309,84 +409,5 @@ app.MapHealthChecks("/health", new HealthCheckOptions
 });
 
 
-
-using (var scope = app.Services.CreateScope())
-{
-    var logger = scope.ServiceProvider
-        .GetRequiredService<ILogger<Program>>();
-
-    var db = scope.ServiceProvider
-        .GetRequiredService<AppDbContext>();
-
-    try
-    {
-       
-        var historyTableExists = await db.Database
-            .SqlQueryRaw<bool>(@"
-                SELECT EXISTS (
-                    SELECT FROM information_schema.tables
-                    WHERE table_schema = 'public'
-                    AND table_name = '__EFMigrationsHistory'
-                ) AS ""Value""
-            ")
-            .FirstOrDefaultAsync();
-
-        if (!historyTableExists)
-        {
-            logger.LogWarning(
-                "No __EFMigrationsHistory table found. " +
-                "Assuming existing schema and registering all migrations as applied.");
-
-            await db.Database.ExecuteSqlRawAsync(@"
-                CREATE TABLE IF NOT EXISTS ""__EFMigrationsHistory"" (
-                    ""MigrationId"" character varying(150) NOT NULL,
-                    ""ProductVersion"" character varying(32) NOT NULL,
-                    CONSTRAINT ""PK___EFMigrationsHistory""
-                        PRIMARY KEY (""MigrationId"")
-                );
-            ");
-
-            var allMigrations = db.Database.GetMigrations().ToList();
-
-            foreach (var migration in allMigrations)
-            {
-                await db.Database.ExecuteSqlRawAsync($@"
-                    INSERT INTO ""__EFMigrationsHistory""
-                        (""MigrationId"", ""ProductVersion"")
-                    VALUES ('{migration}', '9.0.0')
-                    ON CONFLICT DO NOTHING;
-                ");
-
-                logger.LogInformation(
-                    "Registered existing migration: {Migration}",
-                    migration);
-            }
-        }
-
-        // Apply any pending migrations
-        var pending = (await db.Database.GetPendingMigrationsAsync()).ToList();
-
-        if (pending.Any())
-        {
-            logger.LogInformation(
-                "Applying {Count} pending migration(s): {Migrations}",
-                pending.Count,
-                string.Join(", ", pending));
-
-            await db.Database.MigrateAsync();
-
-            logger.LogInformation("Migrations applied successfully.");
-        }
-        else
-        {
-            logger.LogInformation("Database is up to date. No pending migrations.");
-        }
-    }
-    catch (Exception ex)
-    {
-        logger.LogError(ex, "An error occurred while applying database migrations.");
-        throw; // Crash app so the bad deploy is visible
-    }
-}
 
 app.Run();

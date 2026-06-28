@@ -4,5 +4,7 @@ public record OrderResponse(
     Guid OrderId,
     decimal TotalAmount,
     string Status,
-    DateTime CreatedAt
+    DateTime CreatedAt,
+    DateTime? CancelledAt = null,
+    string? CancellationReason = null
 );

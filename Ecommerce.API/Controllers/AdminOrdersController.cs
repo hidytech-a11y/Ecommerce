@@ -3,9 +3,11 @@ using Ecommerce.Application.Common.Pagination;
 using Ecommerce.Application.Common.Responses;
 using Ecommerce.Application.DTOs.Orders;
 using Ecommerce.Application.Interfaces;
+using Ecommerce.Application.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
+using System.Security.Claims;
 
 namespace Ecommerce.Api.Controllers;
 
@@ -17,10 +19,12 @@ namespace Ecommerce.Api.Controllers;
 public class AdminOrdersController : ControllerBase
 {
     private readonly IAdminOrderService _adminOrderService;
+    private readonly IOrderService _orderService;
 
-    public AdminOrdersController(IAdminOrderService adminOrderService)
+    public AdminOrdersController(IAdminOrderService adminOrderService, IOrderService orderService)
     {
         _adminOrderService = adminOrderService;
+        _orderService = orderService;
     }
 
     /// Gets ALL orders across all users (Admin only).
@@ -67,5 +71,23 @@ public class AdminOrdersController : ControllerBase
 
         return Ok(ApiResponse<AdminOrderStatsResponse>
             .SuccessResponse(result, "Stats fetched successfully"));
+    }
+
+    // NEW: Admin cancels any order with full stock restoration + outbox event
+    [HttpPost("{id}/cancel")]
+    public async Task<IActionResult> CancelOrder(
+        Guid id,
+        [FromBody] CancelOrderRequest? request)
+    {
+        var adminId = Guid.Parse(
+            User.FindFirstValue(ClaimTypes.NameIdentifier)!);
+
+        var result = await _orderService.AdminCancelOrderAsync(
+            id,
+            adminId,
+            request ?? new CancelOrderRequest());
+
+        return Ok(ApiResponse<OrderResponse>
+            .SuccessResponse(result, "Order cancelled successfully"));
     }
 }

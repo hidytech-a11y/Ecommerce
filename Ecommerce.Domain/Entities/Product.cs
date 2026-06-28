@@ -5,14 +5,14 @@ namespace Ecommerce.Domain.Entities;
 public class Product : BaseEntity
 {
     public string Name { get; private set; } = default!;
+    public string Slug { get; private set; } = default!;   // NEW
     public string Description { get; private set; } = default!;
     public decimal Price { get; private set; }
     public int StockQuantity { get; private set; }
     public bool IsAvailable { get; private set; }
     public Guid CategoryId { get; private set; }
-    //public byte[]? RowVersion { get; private set; }
+    public byte[]? RowVersion { get; private set; }
 
-    
     public string? FrontImageUrl { get; private set; }
     public string? BackImageUrl { get; private set; }
     public string? SideImageUrl { get; private set; }
@@ -23,9 +23,16 @@ public class Product : BaseEntity
 
     private Product() { }
 
-    public Product(string name, string description, decimal price, int stock, Guid categoryId)
+    public Product(
+        string name,
+        string slug,                                       
+        string description,
+        decimal price,
+        int stock,
+        Guid categoryId)
     {
         Name = name;
+        Slug = slug;                                       
         Description = description;
         Price = price;
         StockQuantity = stock;
@@ -44,6 +51,14 @@ public class Product : BaseEntity
         StockQuantity -= quantity;
     }
 
+    public void RestoreStock(int quantity)
+    {
+        if (quantity <= 0)
+            throw new InvalidOperationException("Invalid quantity.");
+
+        StockQuantity += quantity;
+    }
+
     public void Update(string name, string description, decimal price, int stock, bool isAvailable)
     {
         Name = name;
@@ -53,7 +68,6 @@ public class Product : BaseEntity
         IsAvailable = isAvailable;
     }
 
-   
     public void SetFrontImage(string? url, string? publicId)
     {
         FrontImageUrl = url;

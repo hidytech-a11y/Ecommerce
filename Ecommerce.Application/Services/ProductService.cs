@@ -3,10 +3,10 @@ using Ecommerce.Application.Common.Exceptions;
 using Ecommerce.Application.Common.Interfaces;
 using Ecommerce.Application.Common.Pagination;
 using Ecommerce.Application.Common.Pricing;
+using Ecommerce.Application.Common.Utilities;
 using Ecommerce.Application.DTOs.Products;
 using Ecommerce.Application.Interfaces;
 using Ecommerce.Domain.Entities;
-using Microsoft.AspNetCore.Http;
 
 namespace Ecommerce.Application.Services;
 
@@ -20,7 +20,8 @@ public class ProductService : IProductService
     public ProductService(
         IProductRepository repository,
         IDiscountRepository discountRepository,
-        ICacheService cache, ICloudinaryService cloudinary)
+        ICacheService cache,
+        ICloudinaryService cloudinary)
     {
         _repository = repository;
         _discountRepository = discountRepository;
@@ -28,7 +29,24 @@ public class ProductService : IProductService
         _cloudinary = cloudinary;
     }
 
-    
+    public async Task<ProductResponse> CreateProductAsync(CreateProductRequest request)
+    {
+        // Generate unique slug from product name
+        var slug = await GenerateUniqueSlugAsync(request.Name);
+
+        var product = new Product(
+            request.Name,
+            slug,
+            request.Description,
+            request.Price,
+            request.StockQuantity,
+            request.CategoryId);
+
+        await _repository.AddAsync(product);
+        await _repository.SaveChangesAsync();
+
+        return MapToResponse(product, null);
+    }
 
     public async Task<ProductResponse> UpdateProductAsync(Guid id, UpdateProductRequest request)
     {
@@ -47,7 +65,6 @@ public class ProductService : IProductService
         await _repository.UpdateAsync(product);
         await _repository.SaveChangesAsync();
 
-        // Remove cached product details
         await _cache.RemoveAsync(CacheKeys.ProductDetails(id));
 
         return MapToResponse(product, null);
@@ -60,17 +77,24 @@ public class ProductService : IProductService
         if (product is null)
             throw new NotFoundException("Product not found.");
 
+        if (!string.IsNullOrWhiteSpace(product.FrontImagePublicId))
+            await _cloudinary.DeleteAsync(product.FrontImagePublicId);
+
+        if (!string.IsNullOrWhiteSpace(product.BackImagePublicId))
+            await _cloudinary.DeleteAsync(product.BackImagePublicId);
+
+        if (!string.IsNullOrWhiteSpace(product.SideImagePublicId))
+            await _cloudinary.DeleteAsync(product.SideImagePublicId);
+
         await _repository.DeleteAsync(product);
         await _repository.SaveChangesAsync();
 
-        // Remove cached product details
         await _cache.RemoveAsync(CacheKeys.ProductDetails(id));
     }
 
     public async Task<ProductResponse> GetProductAsync(Guid id)
     {
         var cacheKey = CacheKeys.ProductDetails(id);
-
         var cached = await _cache.GetAsync<ProductResponse>(cacheKey);
 
         if (cached != null)
@@ -85,87 +109,49 @@ public class ProductService : IProductService
             .GetActiveDiscountForProductAsync(product.Id);
 
         var finalPrice = DiscountCalculator.CalculateFinalPrice(
-            product.Price,
-            discount);
+            product.Price, discount);
 
         var response = MapToResponse(product, finalPrice);
 
-        // Cache product details
-        await _cache.SetAsync(
-            cacheKey,
-            response,
-            TimeSpan.FromMinutes(10));
+        await _cache.SetAsync(cacheKey, response, TimeSpan.FromMinutes(10));
 
         return response;
     }
 
-    public async Task<ProductResponse> CreateProductAsync(
-    CreateProductRequest request)
+    // Get product by slug (for SEO-friendly URLs)
+    public async Task<ProductResponse> GetProductBySlugAsync(string slug)
     {
-        var product = new Product(
-            request.Name,
-            request.Description,
-            request.Price,
-            request.StockQuantity,
-            request.CategoryId);
+        if (string.IsNullOrWhiteSpace(slug))
+            throw new BadRequestException("Slug is required.");
 
-        var folder = $"ecommerce/products/{Guid.NewGuid()}";
+        var cacheKey = CacheKeys.ProductBySlug(slug);
+        var cached = await _cache.GetAsync<ProductResponse>(cacheKey);
 
-        if (request.FrontImage != null)
-        {
-            using var stream = request.FrontImage.OpenReadStream();
+        if (cached != null)
+            return cached;
 
-            var (url, publicId) =
-                await _cloudinary.UploadAsync(
-                    stream,
-                    request.FrontImage.FileName,
-                    request.FrontImage.ContentType,
-                    folder);
+        var product = await _repository.GetBySlugAsync(slug);
 
-            product.SetFrontImage(url, publicId);
-        }
+        if (product is null)
+            throw new NotFoundException("Product not found.");
 
-        if (request.BackImage != null)
-        {
-            using var stream = request.BackImage.OpenReadStream();
+        var discount = await _discountRepository
+            .GetActiveDiscountForProductAsync(product.Id);
 
-            var (url, publicId) =
-                await _cloudinary.UploadAsync(
-                    stream,
-                    request.BackImage.FileName,
-                    request.BackImage.ContentType,
-                    folder);
+        var finalPrice = DiscountCalculator.CalculateFinalPrice(
+            product.Price, discount);
 
-            product.SetBackImage(url, publicId);
-        }
+        var response = MapToResponse(product, finalPrice);
 
-        if (request.SideImage != null)
-        {
-            using var stream = request.SideImage.OpenReadStream();
+        await _cache.SetAsync(cacheKey, response, TimeSpan.FromMinutes(10));
 
-            var (url, publicId) =
-                await _cloudinary.UploadAsync(
-                    stream,
-                    request.SideImage.FileName,
-                    request.SideImage.ContentType,
-                    folder);
-
-            product.SetSideImage(url, publicId);
-        }
-
-        await _repository.AddAsync(product);
-        await _repository.SaveChangesAsync();
-
-        return MapToResponse(product, null);
+        return response;
     }
 
-    public async Task<PagedResult<ProductResponse>> GetProductsAsync(
-    ProductQueryParameters query)
+    public async Task<PagedResult<ProductResponse>> GetProductsAsync(ProductQueryParameters query)
     {
         var cacheKey = CacheKeys.ProductsPage(
-            query.Page,
-            query.PageSize,
-            query.Search);
+            query.Page, query.PageSize, query.Search);
 
         var cachedProducts =
             await _cache.GetAsync<PagedResult<ProductResponse>>(cacheKey);
@@ -173,12 +159,9 @@ public class ProductService : IProductService
         if (cachedProducts != null)
             return cachedProducts;
 
-        var (items, totalCount) =
-            await _repository.GetProductsAsync(query);
+        var (items, totalCount) = await _repository.GetProductsAsync(query);
 
-        var responses = items
-            .Select(p => MapToResponse(p, null))
-            .ToList();
+        var responses = items.Select(p => MapToResponse(p, null)).ToList();
 
         var result = new PagedResult<ProductResponse>
         {
@@ -188,47 +171,26 @@ public class ProductService : IProductService
             TotalCount = totalCount
         };
 
-        await _cache.SetAsync(
-            cacheKey,
-            result,
-            TimeSpan.FromMinutes(5));
+        await _cache.SetAsync(cacheKey, result, TimeSpan.FromMinutes(5));
 
         return result;
     }
 
-    private static ProductResponse MapToResponse(Product product, decimal? finalPrice)
-    {
-        var price = finalPrice ?? product.Price;
-
-        return new ProductResponse(
-            product.Id,
-            product.Name,
-            product.Description,
-            product.Price,
-            price,
-            price < product.Price,
-            product.StockQuantity,
-            product.IsAvailable,
-            "",
-            product.FrontImageUrl,
-            product.BackImageUrl,
-            product.SideImageUrl
-        );
-    }
-
-    public async Task<ProductResponse> UpdateProductImagesAsync(Guid id, UpdateProductImagesInput input)
+    public async Task<ProductResponse> UpdateProductImagesAsync(
+        Guid id,
+        UpdateProductImagesInput input)
     {
         var product = await _repository.GetTrackedByIdAsync(id);
-        if (product is null) throw new NotFoundException("Product not found.");
+
+        if (product is null)
+            throw new NotFoundException("Product not found.");
 
         var allowedTypes = new[] { "image/jpeg", "image/png", "image/webp" };
-        const long maxBytes = 5 * 1024 * 1024; // 5MB
+        const long maxBytes = 5 * 1024 * 1024;
 
-        // Helper to validate+upload+delete old
-        async Task UpdateImage(
+        async Task ProcessImage(
             ImageFileInput? file,
             bool remove,
-            string? oldUrl,
             string? oldPublicId,
             Action<string?, string?> setter)
         {
@@ -240,28 +202,36 @@ public class ProductService : IProductService
                 return;
             }
 
-            if (file is null) return; // no change
+            if (file is null) return;
 
-            // validate
             if (!allowedTypes.Contains(file.ContentType, StringComparer.OrdinalIgnoreCase))
-                throw new InvalidOperationException($"Invalid file type for image: {file.ContentType}");
-            if (file.Content.Length > maxBytes)
-                throw new InvalidOperationException("Image exceeds 5MB limit.");
+                throw new InvalidOperationException(
+                    $"'{file.FileName}' has an invalid type '{file.ContentType}'.");
 
-            // delete old
+            if (file.Content.Length > maxBytes)
+                throw new InvalidOperationException(
+                    $"'{file.FileName}' exceeds the 5 MB limit.");
+
             if (!string.IsNullOrWhiteSpace(oldPublicId))
                 await _cloudinary.DeleteAsync(oldPublicId);
 
-            // upload new
             var folder = $"ecommerce/products/{product.Id}";
-            using var stream = file.Content;
-            var (url, publicId) = await _cloudinary.UploadAsync(stream, file.FileName, file.ContentType, folder);
-            setter(url, publicId);
+
+            (string uploadedUrl, string uploadedPublicId) =
+                await _cloudinary.UploadAsync(
+                    file.Content, file.FileName, file.ContentType, folder);
+
+            setter(uploadedUrl, uploadedPublicId);
         }
 
-        await UpdateImage(input.Front, input.RemoveFront, product.FrontImageUrl, product.FrontImagePublicId, product.SetFrontImage);
-        await UpdateImage(input.Back, input.RemoveBack, product.BackImageUrl, product.BackImagePublicId, product.SetBackImage);
-        await UpdateImage(input.Side, input.RemoveSide, product.SideImageUrl, product.SideImagePublicId, product.SetSideImage);
+        await ProcessImage(input.Front, input.RemoveFront,
+            product.FrontImagePublicId, product.SetFrontImage);
+
+        await ProcessImage(input.Back, input.RemoveBack,
+            product.BackImagePublicId, product.SetBackImage);
+
+        await ProcessImage(input.Side, input.RemoveSide,
+            product.SideImagePublicId, product.SetSideImage);
 
         await _repository.UpdateAsync(product);
         await _repository.SaveChangesAsync();
@@ -269,5 +239,50 @@ public class ProductService : IProductService
         await _cache.RemoveAsync(CacheKeys.ProductDetails(id));
 
         return MapToResponse(product, null);
+    }
+
+    // HELPERS 
+
+   
+    // Generates a unique slug. If "nike-shoe" exists, returns "nike-shoe-2", etc.
+    
+    private async Task<string> GenerateUniqueSlugAsync(string name)
+    {
+        var baseSlug = SlugGenerator.Generate(name);
+
+        if (string.IsNullOrWhiteSpace(baseSlug))
+            baseSlug = "product";
+
+        var slug = baseSlug;
+        var counter = 2;
+
+        // Keep checking until we find an available slug
+        while (await _repository.SlugExistsAsync(slug))
+        {
+            slug = $"{baseSlug}-{counter}";
+            counter++;
+        }
+
+        return slug;
+    }
+
+    private static ProductResponse MapToResponse(Product product, decimal? finalPrice)
+    {
+        var price = finalPrice ?? product.Price;
+
+        return new ProductResponse(
+            product.Id,
+            product.Name,
+            product.Slug,                                 
+            product.Description,
+            product.Price,
+            price,
+            price < product.Price,
+            product.StockQuantity,
+            product.IsAvailable,
+            product.CategoryId.ToString(),
+            product.FrontImageUrl,
+            product.BackImageUrl,
+            product.SideImageUrl);
     }
 }

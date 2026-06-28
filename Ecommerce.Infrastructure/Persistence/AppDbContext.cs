@@ -55,6 +55,15 @@ public class AppDbContext : DbContext
             e.Property(p => p.SideImagePublicId).HasMaxLength(512);
         });
 
+        builder.Entity<Product>()
+            .Property(p => p.Slug)
+            .HasMaxLength(250)
+            .IsRequired();
+
+        builder.Entity<Product>()
+            .HasIndex(p => p.Slug)
+            .IsUnique();
+
         builder.Entity<Order>()
             .HasMany(o => o.Items)
             .WithOne()
@@ -78,6 +87,10 @@ public class AppDbContext : DbContext
         builder.Entity<Discount>()
             .Property(d => d.Value)
             .HasPrecision(18, 2);
+
+        builder.Entity<Order>()
+            .Property(o => o.CancellationReason)
+            .HasMaxLength(500);
 
         builder.Entity<Cart>(b =>
         {

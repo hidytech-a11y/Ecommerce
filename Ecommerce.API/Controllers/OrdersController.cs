@@ -19,7 +19,6 @@ public class OrdersController : ControllerBase
         _orderService = orderService;
     }
 
-    //Checkout from Cart (Option A)
     [HttpPost("checkout")]
     public async Task<IActionResult> Checkout()
     {
@@ -32,7 +31,6 @@ public class OrdersController : ControllerBase
             .SuccessResponse(order, "Order created successfully"));
     }
 
-    //Get all user orders
     [HttpGet]
     public async Task<IActionResult> GetOrders()
     {
@@ -45,7 +43,6 @@ public class OrdersController : ControllerBase
             .SuccessResponse(result, "Orders fetched successfully"));
     }
 
-    //Get single order
     [HttpGet("{id}")]
     public async Task<IActionResult> GetOrder(Guid id)
     {
@@ -56,5 +53,23 @@ public class OrdersController : ControllerBase
 
         return Ok(ApiResponse<OrderResponse>
             .SuccessResponse(result, "Order fetched successfully"));
+    }
+
+    // User cancels their own order
+    [HttpPost("{id}/cancel")]
+    public async Task<IActionResult> CancelOrder(
+        Guid id,
+        [FromBody] CancelOrderRequest? request)
+    {
+        var userId = Guid.Parse(
+            User.FindFirstValue(ClaimTypes.NameIdentifier)!);
+
+        var result = await _orderService.CancelOrderAsync(
+            id,
+            userId,
+            request ?? new CancelOrderRequest());
+
+        return Ok(ApiResponse<OrderResponse>
+            .SuccessResponse(result, "Order cancelled successfully"));
     }
 }

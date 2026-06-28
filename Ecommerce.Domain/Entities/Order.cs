@@ -11,6 +11,11 @@ public class Order : BaseEntity
     public string? PaymentReference { get; private set; }
     public DateTime? PaidAt { get; private set; }
 
+    // Cancellation tracking fields
+    public DateTime? CancelledAt { get; private set; }
+    public Guid? CancelledBy { get; private set; }
+    public string? CancellationReason { get; private set; }
+
     private readonly List<OrderItem> _items = new();
     public IReadOnlyCollection<OrderItem> Items => _items;
 
@@ -46,7 +51,6 @@ public class Order : BaseEntity
         PaymentReference = reference;
     }
 
-    // NEW: Admin status update
     public void UpdateStatus(OrderStatus newStatus)
     {
         if (Status == OrderStatus.Paid && newStatus == OrderStatus.Pending)
@@ -58,5 +62,22 @@ public class Order : BaseEntity
                 "Cancelled orders cannot be reactivated.");
 
         Status = newStatus;
+    }
+
+    // Cancellation method
+    public void Cancel(Guid cancelledBy, string? reason)
+    {
+        if (Status == OrderStatus.Cancelled)
+            return; // Idempotent — silently succeed
+
+        if (Status != OrderStatus.Pending)
+            throw new InvalidOperationException(
+                $"Only pending orders can be cancelled. Current status: {Status}");
+
+        Status = OrderStatus.Cancelled;
+        CancelledAt = DateTime.UtcNow;
+        CancelledBy = cancelledBy;
+        CancellationReason = reason;
+        PaymentReference = null;
     }
 }

@@ -3,14 +3,15 @@
 public record ProductResponse(
     Guid Id,
     string Name,
+    string Slug,                         
     string Description,
-    decimal OriginalPrice,
+    decimal Price,
     decimal FinalPrice,
-    bool DiscountApplied,
+    bool HasDiscount,
     int StockQuantity,
     bool IsAvailable,
+    string Category,
     string? FrontImageUrl,
     string? BackImageUrl,
-    string? SideImageUrl,
-    string Category
+    string? SideImageUrl
 );

@@ -2,9 +2,11 @@
 
 public static class CacheKeys
 {
-    public static string ProductsPage(int page, int pageSize, string? search)
-        => $"catalog:products:page:{page}:size:{pageSize}:search:{search}";
+    public static string ProductDetails(Guid id) => $"product:{id}";
 
-    public static string ProductDetails(Guid productId)
-        => $"catalog:product:{productId}";
+    // NEW
+    public static string ProductBySlug(string slug) => $"product:slug:{slug}";
+
+    public static string ProductsPage(int page, int pageSize, string? search) =>
+        $"products:page:{page}:size:{pageSize}:search:{search ?? "all"}";
 }

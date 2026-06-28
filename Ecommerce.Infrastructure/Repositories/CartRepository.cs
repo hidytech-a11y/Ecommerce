@@ -54,6 +54,18 @@ public class CartRepository : ICartRepository
         }
     }
 
+    public async Task RemoveCartItemsByProductIdAsync(Guid productId)
+    {
+        var cartItems = await _context.Set<CartItem>()
+            .Where(ci => ci.ProductId == productId)
+            .ToListAsync();
+
+        if (cartItems.Any())
+        {
+            _context.Set<CartItem>().RemoveRange(cartItems);
+        }
+    }
+
     public async Task SaveChangesAsync()
     {
         await _context.SaveChangesAsync();

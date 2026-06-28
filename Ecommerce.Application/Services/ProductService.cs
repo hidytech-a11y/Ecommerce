@@ -7,6 +7,7 @@ using Ecommerce.Application.Common.Utilities;
 using Ecommerce.Application.DTOs.Products;
 using Ecommerce.Application.Interfaces;
 using Ecommerce.Domain.Entities;
+using Microsoft.Extensions.Logging;
 
 namespace Ecommerce.Application.Services;
 
@@ -16,22 +17,27 @@ public class ProductService : IProductService
     private readonly IDiscountRepository _discountRepository;
     private readonly ICacheService _cache;
     private readonly ICloudinaryService _cloudinary;
+    private readonly ICartRepository _cartRepository;        
+    private readonly ILogger<ProductService> _logger;       
 
     public ProductService(
         IProductRepository repository,
         IDiscountRepository discountRepository,
         ICacheService cache,
-        ICloudinaryService cloudinary)
+        ICloudinaryService cloudinary,
+        ICartRepository cartRepository,                       
+        ILogger<ProductService> logger)                       
     {
         _repository = repository;
         _discountRepository = discountRepository;
         _cache = cache;
         _cloudinary = cloudinary;
+        _cartRepository = cartRepository;                    
+        _logger = logger;                                     
     }
 
     public async Task<ProductResponse> CreateProductAsync(CreateProductRequest request)
     {
-        // Generate unique slug from product name
         var slug = await GenerateUniqueSlugAsync(request.Name);
 
         var product = new Product(
@@ -70,6 +76,7 @@ public class ProductService : IProductService
         return MapToResponse(product, null);
     }
 
+    // Removes cart items first 
     public async Task DeleteProductAsync(Guid id)
     {
         var product = await _repository.GetByIdAsync(id);
@@ -77,19 +84,49 @@ public class ProductService : IProductService
         if (product is null)
             throw new NotFoundException("Product not found.");
 
-        if (!string.IsNullOrWhiteSpace(product.FrontImagePublicId))
-            await _cloudinary.DeleteAsync(product.FrontImagePublicId);
+        _logger.LogInformation(
+            "Deleting product. ProductId={ProductId} Name={Name}",
+            product.Id, product.Name);
 
-        if (!string.IsNullOrWhiteSpace(product.BackImagePublicId))
-            await _cloudinary.DeleteAsync(product.BackImagePublicId);
+        try
+        {
+            // 1. Remove product from ALL shopping carts
+            await _cartRepository.RemoveCartItemsByProductIdAsync(id);
 
-        if (!string.IsNullOrWhiteSpace(product.SideImagePublicId))
-            await _cloudinary.DeleteAsync(product.SideImagePublicId);
+            _logger.LogInformation(
+                "Removed product from all carts. ProductId={ProductId}",
+                product.Id);
 
-        await _repository.DeleteAsync(product);
-        await _repository.SaveChangesAsync();
+            // 2. Delete Cloudinary images
+            if (!string.IsNullOrWhiteSpace(product.FrontImagePublicId))
+                await _cloudinary.DeleteAsync(product.FrontImagePublicId);
 
-        await _cache.RemoveAsync(CacheKeys.ProductDetails(id));
+            if (!string.IsNullOrWhiteSpace(product.BackImagePublicId))
+                await _cloudinary.DeleteAsync(product.BackImagePublicId);
+
+            if (!string.IsNullOrWhiteSpace(product.SideImagePublicId))
+                await _cloudinary.DeleteAsync(product.SideImagePublicId);
+
+            // 3. Delete the product itself
+            await _repository.DeleteAsync(product);
+
+            // 4. Save everything in one transaction
+            await _repository.SaveChangesAsync();
+
+            // 5. Clear cached product details
+            await _cache.RemoveAsync(CacheKeys.ProductDetails(id));
+
+            _logger.LogInformation(
+                "Product deleted successfully. ProductId={ProductId}",
+                product.Id);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex,
+                "Failed to delete product. ProductId={ProductId}",
+                product.Id);
+            throw;
+        }
     }
 
     public async Task<ProductResponse> GetProductAsync(Guid id)
@@ -118,7 +155,6 @@ public class ProductService : IProductService
         return response;
     }
 
-    // Get product by slug (for SEO-friendly URLs)
     public async Task<ProductResponse> GetProductBySlugAsync(string slug)
     {
         if (string.IsNullOrWhiteSpace(slug))
@@ -241,11 +277,7 @@ public class ProductService : IProductService
         return MapToResponse(product, null);
     }
 
-    // HELPERS 
-
-   
-    // Generates a unique slug. If "nike-shoe" exists, returns "nike-shoe-2", etc.
-    
+    //  HELPERS
     private async Task<string> GenerateUniqueSlugAsync(string name)
     {
         var baseSlug = SlugGenerator.Generate(name);
@@ -256,7 +288,6 @@ public class ProductService : IProductService
         var slug = baseSlug;
         var counter = 2;
 
-        // Keep checking until we find an available slug
         while (await _repository.SlugExistsAsync(slug))
         {
             slug = $"{baseSlug}-{counter}";
@@ -273,7 +304,7 @@ public class ProductService : IProductService
         return new ProductResponse(
             product.Id,
             product.Name,
-            product.Slug,                                 
+            product.Slug,
             product.Description,
             product.Price,
             price,

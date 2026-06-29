@@ -86,7 +86,27 @@ public class ProductRepository : IProductRepository
 
     public async Task SaveChangesAsync()
     {
-        await _context.SaveChangesAsync();
+        try
+        {
+            await _context.SaveChangesAsync();
+        }
+        catch (DbUpdateConcurrencyException ex)
+        {
+            foreach (var entry in ex.Entries)
+            {
+                var databaseValues = await entry.GetDatabaseValuesAsync();
+
+                if (databaseValues == null)
+                {
+                    throw new InvalidOperationException(
+                        "The entity was deleted by another user.");
+                }
+
+                entry.OriginalValues.SetValues(databaseValues);
+            }
+
+            await _context.SaveChangesAsync();
+        }
     }
 
     public async Task<Product?> GetTrackedByIdAsync(Guid id)

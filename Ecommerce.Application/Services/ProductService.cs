@@ -56,7 +56,7 @@ public class ProductService : IProductService
 
     public async Task<ProductResponse> UpdateProductAsync(Guid id, UpdateProductRequest request)
     {
-        var product = await _repository.GetByIdAsync(id);
+        var product = await _repository.GetTrackedByIdAsync(id);
 
         if (product is null)
             throw new NotFoundException("Product not found.");
@@ -68,7 +68,6 @@ public class ProductService : IProductService
             request.StockQuantity,
             request.IsAvailable);
 
-        await _repository.UpdateAsync(product);
         await _repository.SaveChangesAsync();
 
         await _cache.RemoveAsync(CacheKeys.ProductDetails(id));
@@ -79,7 +78,8 @@ public class ProductService : IProductService
     // Removes cart items first 
     public async Task DeleteProductAsync(Guid id)
     {
-        var product = await _repository.GetByIdAsync(id);
+ 
+        var product = await _repository.GetTrackedByIdAsync(id);
 
         if (product is null)
             throw new NotFoundException("Product not found.");
@@ -90,14 +90,12 @@ public class ProductService : IProductService
 
         try
         {
-            // 1. Remove product from ALL shopping carts
             await _cartRepository.RemoveCartItemsByProductIdAsync(id);
 
             _logger.LogInformation(
                 "Removed product from all carts. ProductId={ProductId}",
                 product.Id);
 
-            // 2. Delete Cloudinary images
             if (!string.IsNullOrWhiteSpace(product.FrontImagePublicId))
                 await _cloudinary.DeleteAsync(product.FrontImagePublicId);
 
@@ -107,13 +105,10 @@ public class ProductService : IProductService
             if (!string.IsNullOrWhiteSpace(product.SideImagePublicId))
                 await _cloudinary.DeleteAsync(product.SideImagePublicId);
 
-            // 3. Delete the product itself
             await _repository.DeleteAsync(product);
 
-            // 4. Save everything in one transaction
             await _repository.SaveChangesAsync();
 
-            // 5. Clear cached product details
             await _cache.RemoveAsync(CacheKeys.ProductDetails(id));
 
             _logger.LogInformation(
